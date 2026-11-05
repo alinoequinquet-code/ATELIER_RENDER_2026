@@ -1,0 +1,8 @@
+/* Fenêtre « Serveur du club » (composant React CloudSync) */
+.modal .card.cloud{width:min(620px,100%);max-height:calc(100dvh - 32px);overflow:auto;gap:14px}
+.cloud-form{display:flex;flex-direction:column;gap:12px}
+.cloud h3{margin:4px 0 8px;font:800 italic 18px/1.1 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.cloud-ok{margin:0;padding:10px 12px;border-radius:10px;background:var(--surface-2);box-shadow:inset 4px 0 0 var(--good);font-weight:600;line-height:1.35}
+.cloud .err{margin:0}
+.cloud-wait{margin:0}
+.cloud .snaps .btn{white-space:normal}

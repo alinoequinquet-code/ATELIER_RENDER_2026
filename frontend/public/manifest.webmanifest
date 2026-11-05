@@ -1,0 +1,24 @@
+{
+  "name": "Banc2Touche",
+  "short_name": "Banc2Touche",
+  "description": "Outils de banc pour coacher les matchs du Massy Essonne Handball",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1B2057",
+  "theme_color": "#1B2057",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

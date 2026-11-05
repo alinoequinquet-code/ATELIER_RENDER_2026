@@ -1,0 +1,19 @@
+{
+  "name": "banc2touche-front",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Front React de Banc2Touche (Static Site Render)",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node build.mjs && python3 -m http.server 8080 --directory build"
+  },
+  "dependencies": {
+    "esbuild": "0.24.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

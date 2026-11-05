@@ -1,0 +1,9 @@
+.git
+.github
+frontend
+terraform
+app/tests
+**/__pycache__
+**/.pytest_cache
+*.db
+README.md
