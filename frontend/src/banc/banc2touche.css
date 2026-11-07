@@ -252,7 +252,7 @@ textarea.in.dg-txt{min-height:170px;font-size:17px}
 
 /* ---------- Gardien ---------- */
 .big{font:800 64px/1 var(--display);font-variant-numeric:tabular-nums}
-.heat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border:7px solid var(--ink);border-bottom:0;padding:6px;border-radius:6px 6px 0 0;max-width:440px;width:100%}
+.heat{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;border:7px solid var(--ink);border-bottom:0;padding:6px;border-radius:6px 6px 0 0;max-width:440px;width:100%}
 .heat div{aspect-ratio:1.45;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2)}
 .heat b{font:800 26px/1 var(--display);font-variant-numeric:tabular-nums}
 .heat span{font-size:12.5px}
@@ -389,18 +389,67 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .ptile[aria-pressed="true"] span,.ptile[aria-pressed="true"].gk b{color:var(--accent-ink)}
 
 /* ---------- Saisie en direct ---------- */
-.lv{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"team team" "players players" "court shot" "feed shot";align-items:start}
+.lv{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"team team" "act players" "where where" "feed feed";align-items:start}
 .lv-team{grid-area:team;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 14px}
 .lv-team .score{margin-left:auto}
-.lv-players{grid-area:players}.lv-court{grid-area:court}.lv-shot{grid-area:shot}.lv-feed{grid-area:feed}
+.lv-act{grid-area:act}.lv-players{grid-area:players}.lv-where{grid-area:where}.lv-feed{grid-area:feed}
+.lv-def{min-width:170px;flex:0 1 210px}
+.lv .step{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:800 16px/1 var(--display);margin-right:8px;vertical-align:3px;font-style:normal}
+.lv.is-opp .step{background:var(--opp);color:var(--opp-ink)}
+.lv-wgrid{display:grid;gap:12px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:start}
+.lv-wside{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lv-goalrec{display:flex;flex-direction:column;gap:10px}
+.lv-rec{display:flex;flex-direction:column;gap:8px}
+.lv-rec .row{flex-wrap:nowrap}
+.btn.rec{flex:1;min-height:58px;font:italic 800 23px/1 var(--display);text-transform:uppercase;letter-spacing:.04em}
+.btn.rec:disabled{opacity:.4}
+.lv-svg.off{opacity:.35;pointer-events:none}
+.lv .act[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 3px var(--gold)}
+.lv .act.goal:not([aria-pressed="true"]){background:var(--surface);border:2px solid var(--accent);color:var(--accent)}
+.lv .act.loss{grid-column:1/-1}
+.gpick{display:flex;flex-direction:column;gap:6px;max-width:340px}
+.gp-goal{display:grid;grid-template-columns:1fr 1fr;gap:4px;border:5px solid var(--ink);border-bottom:0;padding:4px;border-radius:5px 5px 0 0}
+.gp-sp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.gpick button{hyphens:manual;-webkit-hyphens:manual;min-height:42px;border:1px dashed var(--line);background:var(--surface-2);border-radius:7px;font:700 14px/1.1 var(--body);color:var(--ink);padding:2px 4px}
+.gp-sp button{border-style:solid}
+.gpick button[aria-pressed="true"]{background:var(--gold);border:1px solid var(--gold);color:var(--gold-ink)}
+.gpick button:disabled{opacity:.35}
+.ptile b{display:flex;align-items:center;gap:4px}
+.pav{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:none;display:inline-block}
+.pav.none{display:inline-grid;place-items:center;background:var(--surface-2);font:800 11px/1 var(--display);color:var(--muted)}
+.convlist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px}
+.convlist li{display:flex;align-items:center;gap:10px;min-height:40px;border-bottom:1px solid var(--line)}
+.convlist .pav{width:32px;height:32px}
+.convlist small{margin-left:auto;color:var(--muted)}
+.tile.hasph{padding-top:8px}
+.tav{width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px var(--surface)}
+.tiles.conv .tile.hasph b{font-size:22px}
+.tphoto-row{display:flex;gap:16px;align-items:center}
+.tphoto{width:112px;height:112px;border-radius:50%;flex:none;overflow:hidden;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font:italic 800 38px/1 var(--display);box-shadow:inset 0 -5px 0 var(--gold)}
+.tphoto img{width:100%;height:100%;object-fit:cover}
+.tphoto-act{display:flex;flex-direction:column;gap:8px;min-width:0}
+.filebtn{position:relative;overflow:hidden;cursor:pointer}
+.vh-file{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.pnum.ph{padding:0;overflow:hidden;position:relative;background:var(--surface-2)}
+.pnum.ph img{width:100%;height:100%;object-fit:cover}
+.pnum.ph i{position:absolute;right:-2px;bottom:-2px;font:italic 800 14px/1 var(--display);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:3px 5px;box-shadow:0 0 0 2px var(--surface)}
+.heatwrap{display:flex;flex-direction:column;gap:8px;max-width:440px;width:100%}
+.heat-sp{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.heat-sp div{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2);padding:8px 4px}
+.heat small,.heat-sp small{font-size:11.5px;font-weight:700;color:var(--muted)}
+.heat-sp b{font:800 22px/1 var(--display)}
+.heat-sp span{font-size:12px}
+.cl{font:700 .1px var(--body);text-anchor:middle}
+.cl.hi{fill:var(--heat-ink)} .cl.lo{fill:var(--ink)}
+.cn.sm{font-size:.2px}
 .lv .who{display:inline-block;padding:3px 10px;border-radius:8px;background:var(--accent);color:var(--accent-ink)}
 .lv.is-opp .who{background:var(--opp);color:var(--opp-ink)}
 .lv .act.goal{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .lv.is-opp .act.goal{background:var(--opp);border-color:var(--opp);color:var(--opp-ink)}
-.lv>.lv-players,.lv>.lv-court,.lv>.lv-shot{border-top:5px solid var(--accent)}
-.lv.is-opp>.lv-players,.lv.is-opp>.lv-court,.lv.is-opp>.lv-shot{border-top-color:var(--opp);background:color-mix(in srgb,var(--opp) 7%,var(--surface))}
-.lv.is-opp>.lv-court,.lv.is-opp>.lv-shot{--accent:var(--opp);--accent-ink:var(--opp-ink);--accent-soft:var(--opp-soft)}
-.lv.is-opp .lv-shot h2 .who{font-size:1.05em}
+.lv>.lv-act,.lv>.lv-players,.lv>.lv-where{border-top:5px solid var(--accent)}
+.lv.is-opp>.lv-act,.lv.is-opp>.lv-players,.lv.is-opp>.lv-where{border-top-color:var(--opp);background:color-mix(in srgb,var(--opp) 7%,var(--surface))}
+.lv.is-opp>.lv-act,.lv.is-opp>.lv-where{--accent:var(--opp);--accent-ink:var(--opp-ink);--accent-soft:var(--opp-soft)}
+.lv.is-opp .lv-act h2 .who{font-size:1.05em}
 .lv .cagegrid{width:max-content;max-width:100%}
 .espchips{display:grid;grid-template-columns:auto repeat(7,minmax(0,1fr));gap:5px;align-items:center}
 .espchips .lab{padding-right:4px}
@@ -412,7 +461,7 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .lv-svg{display:flex;justify-content:center;align-items:center;min-height:0}
 .lv-svg .court{width:100%;height:auto}
 .btn.sm{min-height:38px;padding:0 12px;font-size:14px}
-@media (max-width:680px){.lv{grid-template-columns:minmax(0,1fr);grid-template-areas:"team" "players" "court" "shot" "feed"}}
+@media (max-width:680px){.lv{grid-template-columns:minmax(0,1fr);grid-template-areas:"team" "act" "players" "where" "feed"}.lv-wgrid{grid-template-columns:minmax(0,1fr)}}
 /* ---------- Espaces 0-1 … 6-0 ---------- */
 .esp-ray{stroke:var(--lines);stroke-width:.07;stroke-dasharray:.32 .26;opacity:.5}
 .espstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -463,19 +512,22 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .fx>.card,body.fit .fx>.side{min-height:0;overflow:auto}
   body.fit .lv{flex:1 1 auto;min-height:0;align-items:stretch;gap:10px}
   body.fit .lv>.card{min-height:0;overflow:auto}
-  body.fit .lv-court{overflow:hidden}
-  body.fit .lv-court .lv-svg{flex:1 1 0;min-height:0}
-  body.fit .lv-court .lv-svg .court{height:100%;width:100%}
+  body.fit .lv-where{overflow:hidden}
+  body.fit .lv-where .lv-wgrid{flex:1 1 0;min-height:0}
+  body.fit .lv-where .lv-svg{min-height:0;height:100%}
+  body.fit .lv-where .lv-svg .court{height:100%;width:100%}
+  body.fit .gpick button{min-height:38px;font-size:13px}
+  body.fit .btn.rec{min-height:54px}
   body.fit .lv>.card>*{flex-shrink:0}
   body.fit .lv>.card>.lv-svg,body.fit .lv-feed>.feed{flex-shrink:1}
   body.fit .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
   body.fit .lv-feed{display:flex;flex-direction:column}
   body.fit .lv-feed .feed{overflow:auto;min-height:0;flex:1 1 auto}
-  body.fit .lv-shot .sel{min-height:42px}
+  body.fit .lv-rec .sel{min-height:40px;font-size:14px}
   body.fit .cagegrid button{height:38px}
   body.fit .act{min-height:52px;font-size:19px}
   body.fit .act.goal{min-height:62px;font-size:28px}
-  body.fit .lv-shot .in{min-height:42px}
+  body.fit .lv-def .in{min-height:42px}
   body.fit .score b{font-size:30px}
   body.fit .seg.big button{min-height:48px;padding:0 16px;font-size:19px}
   body.fit .feed li{min-height:40px;font-size:13.5px}
@@ -501,12 +553,18 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .gkg .big{font-size:52px}
 }
 @media (min-width:740px) and (min-height:600px) and (orientation:landscape){
-  body.fit .lv{grid-template-columns:minmax(250px,.62fr) minmax(0,1.2fr) minmax(290px,.75fr);grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"team court shot" "players court shot" "feed court shot"}
-  body.fit .lv-team{flex-direction:column;align-items:stretch;gap:8px}
-  body.fit .lv-team .score{margin-left:0;justify-content:center}
-  body.fit .lv-team .seg.big{display:flex}
-  body.fit .lv-team .seg.big button{flex:1;padding:0 8px}
-  body.fit .lv-team .swap{white-space:normal;line-height:1.15;min-height:40px}
+  body.fit .lv{grid-template-columns:minmax(250px,.78fr) minmax(0,.86fr) minmax(0,1.36fr);grid-template-rows:auto minmax(0,1fr) minmax(0,.58fr);grid-template-areas:"team team team" "act players where" "act feed where"}
+  body.fit .lv-team{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:12px;padding-block:8px}
+  body.fit .lv-team .score{margin-left:0;order:-1;padding-right:6px}
+  body.fit .lv-team .seg.big button{padding:0 18px}
+  body.fit .lv-team .swap{white-space:normal;line-height:1.15;min-height:44px;max-width:250px;margin-left:auto}
+  body.fit .lv-def{flex-direction:row;align-items:center;gap:8px;white-space:nowrap}
+  body.fit .lv-wgrid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  body.fit .lv-goalrec{flex-direction:row;align-items:flex-end;gap:12px}
+  body.fit .lv-goalrec>.f{flex:1 1 55%;min-width:0}
+  body.fit .lv-rec{flex:1 1 45%;min-width:0}
+  body.fit .lv-rec .row{flex-direction:column;align-items:stretch;gap:6px}
+  body.fit .lv-act .phchips{grid-template-columns:repeat(2,minmax(0,1fr))}
   body.fit .ptiles{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
   body.fit .ptile{min-height:46px}
   body.fit .ptile b{font-size:20px}
@@ -519,9 +577,23 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .head{flex-wrap:nowrap;gap:10px}
   body.fit .head .seg button{padding:0 10px}
   body.fit .lv-team{padding-block:8px}
-  body.fit .lv-court .lv-svg{flex:0 0 auto}
-  body.fit .lv-court .lv-svg .court{height:auto}
-  body.fit .lv{grid-template-columns:minmax(0,1fr) minmax(290px,.75fr);grid-template-rows:auto auto auto minmax(0,1fr);grid-template-areas:"team team" "players players" "court shot" "feed shot"}
+  body.fit .lv{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) minmax(0,.4fr);grid-template-areas:"team team" "act players" "where where" "feed feed"}
+  body.fit .lv-team .swap{max-width:220px;white-space:normal;line-height:1.15}
+  body.fit .lv-wgrid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);height:100%}
+  body.fit .lv-team{flex-wrap:nowrap;gap:8px}
+  body.fit .lv-team .score{margin-left:0}
+  body.fit .lv-team .score .lab{display:none}
+  body.fit .lv-team .seg.big button{padding:0 12px}
+  body.fit .lv-team .swap{max-width:150px;font-size:13px;margin-left:auto}
+  body.fit .lv-def{flex-direction:row;align-items:center;gap:6px;flex:0 0 auto;font-size:13px}
+  body.fit .lv-def .in{width:86px;min-width:0;padding-inline:8px}
+  body.fit .lv-act .acts{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+  body.fit .lv-act .act{grid-column:span 2;min-height:48px;font-size:15px;letter-spacing:.01em}
+  body.fit .lv-act .act.goal{grid-column:1/-1;min-height:56px;font-size:24px}
+  body.fit .lv-act .act.blocked{grid-column:span 2}
+  body.fit .lv-act .act.loss{grid-column:span 4}
+  body.fit .lv-act .phchips{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.fit .lv-act .phchips .chip{min-height:38px}
   body.fit .bil{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr)}
   body.fit .bil>.bcol:first-child{grid-column:1/-1}
   body.fit .bil>.bcol:first-child .kpis.bk{grid-template-columns:repeat(4,minmax(0,1fr))}
