@@ -73,6 +73,7 @@ jobs:
       TF_VAR_admin_username: ${{ secrets.B2T_ADMIN_USER }}
       TF_VAR_admin_password: ${{ secrets.B2T_ADMIN_PASSWORD }}
       TF_VAR_frontend_origin: ${{ vars.FRONTEND_ORIGIN || '*' }}
+      FRONTEND_NAME: ${{ vars.FRONTEND_SERVICE || 'banc2touche' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -133,46 +134,79 @@ jobs:
         run: terraform init -input=false
         working-directory: terraform
 
-      # Pas d'état Terraform conservé entre deux runs : on rattache les services déjà créés
-      # pour les mettre à jour sur place (même adresse) au lieu de les recréer.
-      - name: Rattacher les services Render existants
-        working-directory: terraform
+      # Pas d'état Terraform conservé entre deux runs. Terraform crée les services qui n'existent pas encore.
+      # Ceux qui existent déjà sont mis à jour par l'API Render : rattachés à Terraform, ils renvoient leur
+      # réglage « maintenance », que Render refuse sur le plan gratuit.
+      - name: Repérer les services Render existants
         run: |
+          find_id() {
+            curl -fsS -H "Authorization: Bearer ${RENDER_API_KEY}" "https://api.render.com/v1/services?name=$1&limit=20" \
+              | jq -r --arg N "$1" '.[] | select(type=="object" and .service != null) | select(.service.name == $N) | .service.id' \
+              | head -n 1
+          }
+          TARGETS=""
           for pair in "api:${API_NAME}" "adminer:${ADMINER_NAME}"; do
             RES="${pair%%:*}"; NAME="${pair#*:}"
-            ID=$(curl -s -H "Authorization: Bearer ${RENDER_API_KEY}" \
-                   "https://api.render.com/v1/services?name=${NAME}&limit=20" \
-                 | jq -r --arg N "$NAME" '.[] | select(type=="object" and .service != null) | select(.service.name == $N) | .service.id' \
-                 | head -n 1)
+            ID=$(find_id "$NAME")
             if [ -z "$ID" ] || [ "$ID" = "null" ]; then
-              echo "${NAME} : pas encore créé"
-            elif terraform import -input=false "render_web_service.${RES}" "$ID"; then
-              echo "${NAME} (${ID}) : rattaché, il sera mis à jour sur place"
+              echo "${NAME} : pas encore créé, Terraform va le créer"
+              TARGETS="${TARGETS:+${TARGETS} }-target=render_web_service.${RES}"
             else
-              echo "::warning::${NAME} (${ID}) : rattachement impossible, le service est supprimé puis recréé"
-              curl -s -X DELETE -H "Authorization: Bearer ${RENDER_API_KEY}" "https://api.render.com/v1/services/${ID}"
-              sleep 10
+              echo "${NAME} (${ID}) : existe déjà, mis à jour sur place"
             fi
+            if [ "$RES" = "api" ]; then echo "API_ID=${ID}" >> "$GITHUB_ENV"; fi
           done
+          echo "TF_TARGETS=${TARGETS}" >> "$GITHUB_ENV"
+          FRONT_ID=$(find_id "${FRONTEND_NAME}")
+          echo "FRONT_ID=${FRONT_ID}" >> "$GITHUB_ENV"
 
-      - name: Terraform Apply
-        run: terraform apply -input=false -auto-approve
+      - name: Terraform Apply (création)
+        if: env.TF_TARGETS != ''
         working-directory: terraform
+        run: terraform apply -input=false -auto-approve ${TF_TARGETS}
+
+      - name: Mise à jour de l'API existante
+        if: env.API_ID != '' && env.API_ID != 'null'
+        run: |
+          # mêmes variables que terraform/main.tf : la liste remplace celle du service
+          # les secrets sont lus dans l'environnement par jq, ils n'apparaissent dans aucune commande
+          jq -n '[{key:"ENV",value:"production"},{key:"APP_VERSION",value:env.IMAGE_TAG},
+                  {key:"DATABASE_URL",value:env.TF_VAR_database_url},{key:"ADMIN_USERNAME",value:env.TF_VAR_admin_username},
+                  {key:"ADMIN_PASSWORD",value:env.TF_VAR_admin_password},{key:"FRONTEND_ORIGIN",value:env.TF_VAR_frontend_origin}]' > env.json
+          curl -fsS -o /dev/null -X PUT -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Content-Type: application/json" \
+            --data @env.json "https://api.render.com/v1/services/${API_ID}/env-vars"
+          rm env.json
+          echo "Variables d'environnement mises à jour"
+          jq -n --arg img "${IMAGE_URL}:${IMAGE_TAG}" '{imageUrl:$img}' \
+            | curl -fsS -X POST -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Content-Type: application/json" \
+                --data @- "https://api.render.com/v1/services/${API_ID}/deploys" | jq -r '"Déploiement lancé : \(.id) (\(.status))"'
 
       - name: Adresses des services
-        working-directory: terraform
         run: |
-          API_URL=$(terraform output -raw api_url)
+          url() {
+            curl -fsS -H "Authorization: Bearer ${RENDER_API_KEY}" "https://api.render.com/v1/services?name=$1&limit=20" \
+              | jq -r --arg N "$1" '.[] | select(type=="object" and .service != null) | select(.service.name == $N) | .service.serviceDetails.url' \
+              | head -n 1
+          }
+          API_URL=$(url "$API_NAME")
           echo "API_URL=${API_URL}" >> "$GITHUB_ENV"
           {
             echo "### Banc2Touche déployé"
             echo "| Service | Adresse |"
             echo "|---|---|"
             echo "| API Flask | ${API_URL} |"
-            echo "| Adminer | $(terraform output -raw adminer_url) |"
+            echo "| Adminer | $(url "$ADMINER_NAME") |"
+            if [ -n "$FRONT_ID" ]; then echo "| Appli (Static Site) | $(url "$FRONTEND_NAME") |"; fi
             echo ""
             echo "À mettre dans la variable **B2T_API_URL** du Static Site Render : \`${API_URL}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Le Static Site a été créé depuis l'adresse publique du dépôt : Render ne le reconstruit pas tout seul
+      - name: Reconstruire l'appli (Static Site)
+        if: env.FRONT_ID != '' && env.FRONT_ID != 'null'
+        run: |
+          curl -fsS -X POST -H "Authorization: Bearer ${RENDER_API_KEY}" -H "Content-Type: application/json" \
+            --data '{}' "https://api.render.com/v1/services/${FRONT_ID}/deploys" | jq -r '"Build de l'"'"'appli lancé : \(.id)"'
 
       - name: Vérification après déploiement
         run: |
