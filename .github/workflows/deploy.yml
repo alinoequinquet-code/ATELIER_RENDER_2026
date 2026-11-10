@@ -70,7 +70,8 @@ jobs:
       TF_VAR_render_api_key: ${{ secrets.RENDER_API_KEY }}
       TF_VAR_render_owner_id: ${{ secrets.RENDER_OWNER_ID }}
       TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
-      TF_VAR_access_code: ${{ secrets.B2T_ACCESS_CODE }}
+      TF_VAR_admin_username: ${{ secrets.B2T_ADMIN_USER }}
+      TF_VAR_admin_password: ${{ secrets.B2T_ADMIN_PASSWORD }}
       TF_VAR_frontend_origin: ${{ vars.FRONTEND_ORIGIN || '*' }}
     steps:
       - name: Checkout
@@ -82,9 +83,19 @@ jobs:
           [ -n "$TF_VAR_render_api_key" ]  || missing="$missing RENDER_API_KEY"
           [ -n "$TF_VAR_render_owner_id" ] || missing="$missing RENDER_OWNER_ID"
           [ -n "$TF_VAR_database_url" ]    || missing="$missing DATABASE_URL"
-          [ -n "$TF_VAR_access_code" ]     || missing="$missing B2T_ACCESS_CODE"
+          [ -n "$TF_VAR_admin_username" ]  || missing="$missing B2T_ADMIN_USER"
+          [ -n "$TF_VAR_admin_password" ]  || missing="$missing B2T_ADMIN_PASSWORD"
           if [ -n "$missing" ]; then
             echo "::error::Secrets GitHub manquants :$missing (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          # mêmes règles que l'API : sinon le compte du responsable ne serait pas créé
+          if ! printf '%s' "$TF_VAR_admin_username" | grep -Eqi '^[a-z0-9][a-z0-9._-]{2,39}$'; then
+            echo "::error::B2T_ADMIN_USER : 3 à 40 caractères, lettres sans accent, chiffres, point ou tiret"
+            exit 1
+          fi
+          if [ "${#TF_VAR_admin_password}" -lt 8 ]; then
+            echo "::error::B2T_ADMIN_PASSWORD : 8 caractères au minimum"
             exit 1
           fi
 

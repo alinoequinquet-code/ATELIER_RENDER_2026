@@ -621,3 +621,20 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:color-mix(in srgb,var(--goal) 55%,transparent)}
 .modal .card{width:min(680px,100%)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.act:active{transform:none}}
+/* Connexion et comptes */
+.login{position:fixed;inset:0;z-index:80;overflow:auto;display:flex;padding:16px;background:var(--rail)}
+.login-in{margin:auto;width:min(430px,100%);display:flex;flex-direction:column;gap:18px}
+.login-brand{display:flex;align-items:center;justify-content:center;gap:12px;color:#FFFFFF}
+.login-brand .logo{width:54px;height:54px;flex:none;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35))}
+.login-brand .logo svg{display:block;width:100%;height:100%}
+.login-brand .wm{display:block;font-size:30px}
+.login .card{gap:14px;padding:22px 22px 26px;border:0;box-shadow:0 18px 50px rgba(0,0,0,.35),inset 0 -5px 0 var(--gold)}
+.login h1{font-size:32px}
+.login .btn{width:100%}
+.login p{margin:0}
+.acc-form{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}
+.acc-form p{margin:0}
+.acc-pw{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.accs .si b{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.accs li>form{padding:6px 4px 6px 0}
+.pill.off{background:var(--gold-soft);color:var(--gold-deep)}

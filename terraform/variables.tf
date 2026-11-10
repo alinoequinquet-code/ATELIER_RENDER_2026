@@ -30,8 +30,14 @@ variable "database_url" {
   sensitive   = true
 }
 
-variable "access_code" {
-  description = "Code d'accès de l'équipe pour l'API (secret GitHub B2T_ACCESS_CODE)"
+variable "admin_username" {
+  description = "Identifiant du responsable, le seul à gérer les comptes (secret GitHub B2T_ADMIN_USER)"
+  type        = string
+  sensitive   = true
+}
+
+variable "admin_password" {
+  description = "Mot de passe de départ et de secours du responsable (secret GitHub B2T_ADMIN_PASSWORD)"
   type        = string
   sensitive   = true
 }

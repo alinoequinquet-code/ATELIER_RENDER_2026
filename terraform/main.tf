@@ -35,7 +35,8 @@ resource "render_web_service" "api" {
     ENV             = { value = "production" }
     APP_VERSION     = { value = var.image_tag }
     DATABASE_URL    = { value = var.database_url }
-    ACCESS_CODE     = { value = var.access_code }
+    ADMIN_USERNAME  = { value = var.admin_username }
+    ADMIN_PASSWORD  = { value = var.admin_password }
     FRONTEND_ORIGIN = { value = var.frontend_origin }
   }
 }
