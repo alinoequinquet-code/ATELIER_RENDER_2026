@@ -1172,7 +1172,7 @@ function vBackup(){
     ${CLOUD?`<div class="card"><h2>Serveur du club</h2>
       <div class="bkstate ${BKM.lastCloud?'':'need'}"><b>${BKM.lastCloud?'Synchronisé avec le serveur':'Jamais synchronisé'}</b><span>${BKM.lastCloud?`Dernière synchronisation ${relTime(BKM.lastCloud)}.`:'Les données ne sont pas encore sur le serveur du club.'}</span></div>
       <div class="row"><button class="btn primary" data-act="openCloud">Synchroniser avec le serveur</button></div>
-      <p class="hint">Envoie l’effectif et les matchs sur le serveur du club et récupère ceux des autres appareils. Il faut le code d’accès de l’équipe.</p>
+      <p class="hint">Envoie l’effectif et les matchs sur le serveur du club et récupère ceux des autres appareils.</p>
     </div>`:''}
     <div class="card"><h2>Où ranger les sauvegardes</h2>
       <ol class="steps">
@@ -1367,6 +1367,199 @@ function renderView(){
 }
 function renderAll(){renderRail();renderHeader();renderView()}
 
+/* ---------- Comptes : connexion, mon compte, gestion des comptes par le responsable ---------- */
+// La connexion est demandée dès que l'adresse du serveur est connue : <meta name="b2t-api" content="https://…">
+// dans la page, ou window.B2T_API (version Render). Sans adresse, l'appli s'ouvre sans connexion.
+const API_FIXED=String(window.B2T_API||(document.querySelector('meta[name="b2t-api"]')||{}).content||'').trim().replace(/\/+$/,'');
+const AUTH=!!(API_FIXED||window.B2T_AUTH);
+let SESSION=AUTH?LS.get('b2t.session',null):null;
+if(SESSION&&!(SESSION.token&&SESSION.user&&SESSION.api&&(!API_FIXED||SESSION.api===API_FIXED)))SESSION=null;
+let API=API_FIXED||(SESSION?SESSION.api:String(LS.get('b2t.api','')||''));
+const ACC={list:null,loading:false,err:'',edit:null,del:null,pw:false,checked:0};
+const ROLE={admin:'Responsable',coach:'Coach'};
+const isAdmin=()=>!!SESSION&&SESSION.user.role==='admin';
+const apiErr=(status,message)=>Object.assign(new Error(message),{status});
+// Appel au serveur avec la session en cours. Le plan gratuit endort le serveur : le premier appel peut prendre une minute.
+async function api(path,o){
+  o=o||{};
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),o.timeout||75000),tok=o.auth===false?'':(SESSION&&SESSION.token)||'';
+  let res;
+  try{
+    res=await fetch(API+path,{method:o.method||'GET',signal:ctrl.signal,cache:'no-store',
+      headers:Object.assign({},tok?{Authorization:'Bearer '+tok}:{},o.body?{'Content-Type':'application/json'}:{}),
+      body:o.body?JSON.stringify(o.body):undefined});
+  }catch(e){throw apiErr(0,'Serveur injoignable. Vérifie la connexion puis réessaie : le serveur peut mettre une minute à se réveiller.')}
+  finally{clearTimeout(timer)}
+  let data=null;try{data=await res.json()}catch(e){}
+  if(res.ok)return data;
+  // Le serveur ne reconnaît plus la session : compte désactivé, mot de passe changé ou session expirée
+  if(res.status===401&&tok&&!o.quiet&&SESSION&&SESSION.token===tok)endSession('Ta session a été fermée. Reconnecte-toi.');
+  throw apiErr(res.status,(data&&data.error)||'Erreur '+res.status);
+}
+// Ferme la session sur cet appareil. Les données de l'appli (effectif, matchs) restent sur l'appareil.
+function endSession(msg){
+  SESSION=null;LS.del('b2t.session');
+  try{if(msg)sessionStorage.setItem('b2t.msg',msg)}catch(e){}
+  location.reload();
+}
+function signOut(){const done=()=>endSession('');api('/api/auth/logout',{method:'POST',timeout:5000,quiet:true}).then(done,done)}
+// Vérifie de temps en temps que le compte est toujours autorisé. Sans réseau, on reste connecté.
+function checkSession(){
+  if(!SESSION||Date.now()-ACC.checked<10*60e3)return;
+  ACC.checked=Date.now();
+  api('/api/auth/me',{timeout:30000}).then(r=>{
+    const a=SESSION&&SESSION.user,b=r&&r.user;if(!a||!b)return;
+    if(a.id!==b.id||a.username!==b.username||a.name!==b.name||a.role!==b.role){SESSION.user=b;LS.set('b2t.session',SESSION);ACC.list=null;accRender()}
+  }).catch(()=>{ACC.checked=0});
+}
+function showLogin(){
+  let msg='';try{msg=sessionStorage.getItem('b2t.msg')||'';sessionStorage.removeItem('b2t.msg')}catch(e){}
+  const root=document.createElement('div');root.id='auth-root';document.body.appendChild(root);
+  root.innerHTML=`<div class="login"><div class="login-in">
+    <div class="login-brand"><span class="logo" aria-hidden="true">${B2T_MARK}</span><b class="wm" aria-label="Banc2Touche">Banc<em>2</em>Touche</b></div>
+    <form class="card" data-form="login" novalidate>
+      <h1>Connexion</h1>
+      ${API_FIXED?'':`<label class="f" for="lg-api">Adresse du serveur<input id="lg-api" name="api" class="in" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://b2t-api-….onrender.com" value="${esc(API)}"></label>`}
+      <label class="f" for="lg-user">Identifiant<input id="lg-user" name="username" class="in" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+      <label class="f" for="lg-pass">Mot de passe<input id="lg-pass" name="password" class="in" type="password" autocomplete="current-password"></label>
+      <p class="err" data-msg role="alert"${msg?'':' hidden'}>${esc(msg)}</p>
+      <button class="btn primary" type="submit">Se connecter</button>
+      <p class="hint">Les comptes sont créés par le responsable de l’équipe. La première connexion demande du réseau, ensuite l’appli marche sans.</p>
+    </form></div></div>`;
+  ($('#lg-api')&&!API?$('#lg-api'):$('#lg-user')).focus();
+}
+function genPassword(){
+  const abc='abcdefghjkmnpqrstuvwxyz23456789',out=[];
+  while(out.length<12)for(const x of crypto.getRandomValues(new Uint8Array(16)))if(x<248&&out.length<12)out.push(abc[x%31]);
+  return out.join('').replace(/(.{4})(?=.)/g,'$1-');
+}
+function accRender(){if(S.m&&S.mode==='team'&&S.tview==='account')renderView()}
+function loadUsers(){
+  if(ACC.loading)return;ACC.loading=true;ACC.err='';
+  api('/api/users').then(r=>{ACC.list=r.items}).catch(e=>{ACC.err=e.message}).finally(()=>{ACC.loading=false;accRender()});
+}
+const pwField=(id,ph)=>`<div class="acc-pw"><label class="f" for="${id}">Mot de passe<input id="${id}" name="password" class="in" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="${ph}"></label><button class="btn" type="button" data-acc="gen">Proposer</button></div>`;
+function usersHTML(){
+  if(ACC.err)return `<p class="err">${esc(ACC.err)}</p><div class="row"><button class="btn sm" data-acc="reload">Réessayer</button></div>`;
+  if(!ACC.list)return '<p class="hint">Chargement…</p>';
+  return `<ul class="snaps accs">${ACC.list.map(u=>{
+    const adm=u.role==='admin',seen=u.last_login_at?'dernière connexion '+relTime(Date.parse(u.last_login_at)):'jamais connecté';
+    const info=`<span class="si"><b>${esc(u.name||u.username)}${adm?'<span class="pill">Responsable</span>':u.active?'':'<span class="pill off">Désactivé</span>'}</b><small>${esc(u.username)} · ${seen}${u.sessions?` · ${u.sessions} appareil${u.sessions>1?'s':''} connecté${u.sessions>1?'s':''}`:''}</small></span>`;
+    if(ACC.edit===u.id)return `<li><form class="acc-form" data-form="editUser" data-id="${u.id}" novalidate>
+      <label class="f" for="ae-name">Nom affiché<input id="ae-name" name="name" class="in" autocomplete="off" maxlength="80" value="${esc(u.name)}"></label>
+      ${adm?'<p class="hint">Ton identifiant vient du secret B2T_ADMIN_USER. Ton mot de passe se change dans « Mon compte ».</p>':`<label class="f" for="ae-user">Identifiant<input id="ae-user" name="username" class="in" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" value="${esc(u.username)}"></label>
+      ${pwField('ae-pass','Laisser vide pour le garder')}
+      <p class="hint">Un nouveau mot de passe déconnecte tous ses appareils.</p>`}
+      <p class="err" data-msg role="alert" hidden></p>
+      <div class="row"><button class="btn primary sm" type="submit">Enregistrer</button><button class="btn ghost sm" type="button" data-acc="editNo">Annuler</button></div>
+    </form></li>`;
+    if(ACC.del===u.id)return `<li>${info}<button class="btn danger sm" data-acc="del" data-id="${u.id}">Supprimer ce compte</button><button class="btn ghost sm" data-acc="delNo">Non</button></li>`;
+    return `<li>${info}<button class="btn sm" data-acc="edit" data-id="${u.id}">Modifier</button>${adm?'':`<button class="btn sm" data-acc="toggle" data-id="${u.id}">${u.active?'Désactiver':'Réactiver'}</button><button class="btn sm danger-txt" data-acc="delAsk" data-id="${u.id}">Supprimer</button>`}</li>`;
+  }).join('')}</ul>`;
+}
+function vAccount(){
+  const me=SESSION.user,adm=isAdmin();
+  if(adm&&ACC.list==null&&!ACC.loading&&!ACC.err)loadUsers();
+  return `<div class="pane-head"><div><h1>Compte</h1><p class="hint">${adm?'Tu es le responsable : toi seul crées les comptes, changes les mots de passe et retires les accès.':'Ton compte est géré par le responsable de l’équipe. Mot de passe oublié : demande-lui en un nouveau.'}</p></div></div>
+  <div class="bkgrid">
+    <div class="card"><h2>Mon compte</h2>
+      <div class="bkstate"><b>${esc(me.name||me.username)}</b><span>Identifiant : ${esc(me.username)} · ${ROLE[me.role]||ROLE.coach}</span></div>
+      ${ACC.pw?`<form class="acc-form" data-form="myPassword" novalidate>
+        <input type="text" name="username" autocomplete="username" value="${esc(me.username)}" hidden>
+        <label class="f" for="mp-cur">Mot de passe actuel<input id="mp-cur" name="current" class="in" type="password" autocomplete="current-password"></label>
+        <label class="f" for="mp-new">Nouveau mot de passe (8 caractères au minimum)<input id="mp-new" name="new" class="in" type="password" autocomplete="new-password"></label>
+        <label class="f" for="mp-again">Nouveau mot de passe, une 2e fois<input id="mp-again" name="again" class="in" type="password" autocomplete="new-password"></label>
+        <p class="err" data-msg role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Changer le mot de passe</button><button class="btn ghost" type="button" data-acc="pwNo">Annuler</button></div>
+      </form>`:`<div class="row"><button class="btn" data-acc="pw">Changer mon mot de passe</button><button class="btn ghost" data-acc="out">Se déconnecter</button></div>`}
+      <p class="hint">Se déconnecter n’efface rien : l’effectif et les matchs restent sur cet appareil.</p>
+    </div>
+    ${adm?`<div class="card"><h2>Nouveau compte</h2>
+      <form class="acc-form" data-form="newUser" novalidate>
+        <label class="f" for="nu-name">Nom affiché<input id="nu-name" name="name" class="in" autocomplete="off" maxlength="80" placeholder="Ex. Nino"></label>
+        <label class="f" for="nu-user">Identifiant<input id="nu-user" name="username" class="in" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" placeholder="Ex. nino"></label>
+        ${pwField('nu-pass','8 caractères au minimum')}
+        <p class="err" data-msg role="alert" hidden></p>
+        <div class="row"><button class="btn primary" type="submit">Créer le compte</button></div>
+      </form>
+      <p class="hint">Note le mot de passe avant de créer le compte : il n’est plus affiché ensuite. En cas d’oubli, tu en mets un nouveau.</p>
+    </div>`:''}
+  </div>
+  ${adm?`<div class="card"><div class="card-head"><h2>Comptes${ACC.list?`<span class="count">${ACC.list.length}</span>`:''}</h2><button class="btn sm ghost" data-acc="reload">Actualiser</button></div>${usersHTML()}</div>`:''}`;
+}
+const badName=u=>/^[a-z0-9][a-z0-9._-]{2,39}$/.test(u)?'':'Identifiant : 3 à 40 caractères, lettres sans accent, chiffres, point ou tiret.';
+const badPass=p=>p.length>=8?'':'Mot de passe : 8 caractères au minimum.';
+const FORMS={
+  async login(val){
+    const username=val('username').trim(),password=val('password');
+    if(!API_FIXED){API=val('api').trim().replace(/\/+$/,'');if(!/^https?:\/\/./.test(API))throw new Error('Indique l’adresse du serveur (https://…).')}
+    if(!username||!password)throw new Error('Indique ton identifiant et ton mot de passe.');
+    let r;
+    try{r=await api('/api/auth/login',{method:'POST',auth:false,body:{username,password,device:BKM.device||''}})}
+    catch(e){throw e.status===404||e.status===405?new Error('Ce serveur ne gère pas les comptes Banc2Touche. Vérifie son adresse.'):e}
+    SESSION={token:r.token,user:r.user,api:API};LS.set('b2t.session',SESSION);if(!API_FIXED)LS.set('b2t.api',API);
+    ACC.checked=Date.now();$('#auth-root').remove();enter();
+  },
+  async myPassword(val){
+    const nw=val('new'),bad=badPass(nw);
+    if(!val('current'))throw new Error('Indique ton mot de passe actuel.');
+    if(bad)throw new Error(bad);
+    if(nw!==val('again'))throw new Error('Les deux nouveaux mots de passe sont différents.');
+    await api('/api/auth/password',{method:'POST',body:{current:val('current'),new:nw}});
+    ACC.pw=false;accRender();toast('Mot de passe changé. Tes autres appareils devront se reconnecter.');
+  },
+  async newUser(val){
+    const body={name:val('name').trim(),username:val('username').trim().toLowerCase(),password:val('password')},bad=badName(body.username)||badPass(body.password);
+    if(bad)throw new Error(bad);
+    const r=await api('/api/users',{method:'POST',body});
+    ACC.list=null;accRender();toast(`Compte « ${r.item.username} » créé. Transmets-lui son identifiant et son mot de passe.`);
+  },
+  async editUser(val,f){
+    const u=(ACC.list||[]).find(x=>x.id===+f.dataset.id);if(!u)return;
+    const body={},name=val('name').trim(),username=val('username').trim().toLowerCase(),password=val('password');
+    if(name!==u.name)body.name=name;
+    if(u.role!=='admin'){
+      if(username!==u.username){const bad=badName(username);if(bad)throw new Error(bad);body.username=username}
+      if(password){const bad=badPass(password);if(bad)throw new Error(bad);body.password=password}
+    }
+    if(Object.keys(body).length){
+      await api('/api/users/'+u.id,{method:'PATCH',body});
+      if(u.id===SESSION.user.id&&'name' in body){SESSION.user.name=name;LS.set('b2t.session',SESSION)}
+      toast(body.password?'Compte modifié. Ses appareils devront se reconnecter avec le nouveau mot de passe.':'Compte modifié');
+    }
+    ACC.edit=null;ACC.list=null;accRender();
+  }
+};
+document.addEventListener('submit',e=>{
+  const f=e.target.closest('form[data-form]');if(!f||!FORMS[f.dataset.form])return;
+  e.preventDefault();
+  if(f.dataset.busy)return;
+  const val=n=>f.elements[n]?f.elements[n].value:'',msg=f.querySelector('[data-msg]'),btn=f.querySelector('button[type="submit"]');
+  const say=(t,wait)=>{msg.hidden=!t;msg.textContent=t||'';msg.className=wait?'hint':'err'};
+  f.dataset.busy='1';btn.disabled=true;say('');
+  const slow=setTimeout(()=>say('Le serveur se réveille, ça peut prendre jusqu’à une minute…',true),3000);
+  FORMS[f.dataset.form](val,f).then(()=>say(''),err=>say(err&&err.message||'Erreur inattendue.')).finally(()=>{clearTimeout(slow);delete f.dataset.busy;btn.disabled=false});
+});
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-acc]');if(!el||!SESSION)return;
+  const id=+el.dataset.id,u=(ACC.list||[]).find(x=>x.id===id);
+  const send=(o,done)=>{el.disabled=true;api('/api/users/'+id,o).then(()=>{ACC.list=null;ACC.del=null;accRender();toast(done)},err=>{el.disabled=false;toast(err.message)})};
+  switch(el.dataset.acc){
+    case 'pw':ACC.pw=true;accRender();{const i=$('#mp-cur');if(i)i.focus()}break;
+    case 'pwNo':ACC.pw=false;accRender();break;
+    case 'out':el.disabled=true;signOut();break;
+    case 'reload':ACC.list=null;ACC.err='';ACC.edit=ACC.del=null;accRender();break;
+    case 'edit':ACC.edit=id;ACC.del=null;accRender();{const i=$('#ae-name');if(i)i.focus()}break;
+    case 'editNo':ACC.edit=null;accRender();break;
+    case 'delAsk':ACC.del=id;ACC.edit=null;accRender();break;
+    case 'delNo':ACC.del=null;accRender();break;
+    case 'gen':{const i=el.closest('form').elements.password;i.value=genPassword();i.focus();i.select();break}
+    case 'toggle':if(u)send({method:'PATCH',body:{active:!u.active}},u.active?`Compte « ${u.username} » désactivé : ses appareils sont déconnectés.`:`Compte « ${u.username} » réactivé`);break;
+    case 'del':if(u)send({method:'DELETE'},`Compte « ${u.username} » supprimé`);break;
+  }
+});
+if(AUTH){TVIEWS.account=vAccount;TEAM_NAV.push(['account','Compte']);ICONS.account='<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c.9-4 3.9-6 7.5-6s6.6 2 7.5 6"/>'}
+
 /* ---------- Événements ---------- */
 document.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
@@ -1486,7 +1679,7 @@ document.addEventListener('input',e=>onField(e.target));
 document.addEventListener('change',e=>{if(e.target.id==='bk-file'){readBackup(e.target.files);e.target.value='';return}if(e.target.dataset&&e.target.dataset.photo){setPhoto(e.target.dataset.photo,e.target.files&&e.target.files[0]);e.target.value='';return}if(e.target.tagName==='SELECT')onField(e.target)});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='opp-add'){e.preventDefault();addOpp()}if(e.key==='Escape')$('#modal-root').innerHTML=''});
 
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')maybeSnap('auto',30*60e3)});
+document.addEventListener('visibilitychange',()=>{if(S.m&&document.visibilityState==='hidden')maybeSnap('auto',30*60e3)});
 
 /* ---------- Démarrage ---------- */
 function start(){
@@ -1511,7 +1704,15 @@ function start(){
   renderAll();
   maybeSnap('ouverture',6*3600e3);
   initCloud();
-  window.B2T={backupData,applyCloud,markCloudSaved,device:()=>BKM.device||'',counts:()=>({players:TEAM.example?0:TEAM.players.length,matches:realMatches().length})};
+  window.B2T={backupData,applyCloud,markCloudSaved,api,device:()=>BKM.device||'',user:()=>SESSION?SESSION.user:null,counts:()=>({players:TEAM.example?0:TEAM.players.length,matches:realMatches().length})};
 }
-start();
+// Avec les comptes : l'appli ne démarre qu'une fois connecté, puis la session reste sur l'appareil (utilisable sans réseau)
+function enter(){
+  start();
+  if(!AUTH)return;
+  checkSession();
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkSession()});
+  window.addEventListener('online',checkSession);
+}
+if(AUTH&&!SESSION)showLogin();else enter();
 }
