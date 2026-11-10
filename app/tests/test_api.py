@@ -262,3 +262,78 @@ def test_cors(client):
     assert r.headers["Access-Control-Allow-Origin"] == "*"
     assert "Authorization" in r.headers["Access-Control-Allow-Headers"]
     assert "PATCH" in r.headers["Access-Control-Allow-Methods"] and "DELETE" in r.headers["Access-Control-Allow-Methods"]
+
+
+# ---------- Changer de base de données ----------
+
+def test_export_reserve_au_responsable(client, admin):
+    new_coach(client, admin)
+    coach = bearer(login(client, "nino", COACH_PW).json["token"])
+    assert client.get("/api/admin/export", headers=coach).status_code == 403
+    assert client.post("/api/admin/import", headers=coach, json={}).status_code == 403
+    assert client.get("/api/admin/export").status_code == 401
+
+
+def test_transfert_vers_une_nouvelle_base(client, admin, appmod, tmp_path, monkeypatch):
+    # ancienne base : un coach actif, un désactivé, des sauvegardes, des appareils connectés
+    nino = new_coach(client, admin)
+    lea = new_coach(client, admin, "lea", "Léa", "mot-de-passe-lea")
+    client.patch(f"/api/users/{lea['id']}", headers=admin, json={"active": False})
+    coach = bearer(login(client, "nino", COACH_PW).json["token"])
+    client.post("/api/auth/password", headers=admin, json={"current": ADMIN_PW, "new": "choisi-dans-l-appli"})
+    for i in range(7):
+        client.post("/api/backups", headers=coach, json={"device": f"d{i}", "data": bundle(i + 1)})
+
+    r = client.get("/api/admin/export", headers=admin)
+    assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
+    dump = r.json
+    assert dump["kind"] == "banc2touche-serveur" and len(dump["users"]) == 3 and len(dump["backups"]) == 3
+    text_dump = r.get_data(as_text=True)
+    assert COACH_PW not in text_dump and "choisi-dans-l-appli" not in text_dump
+    assert coach["Authorization"][7:] not in text_dump  # les jetons ne sortent pas en clair
+
+    # nouvelle base vide : le responsable est recréé par les secrets, il se connecte avec ADMIN_PASSWORD
+    url = os.getenv("TEST_DATABASE_URL")
+    if url:  # sur PostgreSQL : on vide la même base pour simuler la nouvelle
+        with client.application.config["ENGINE"].begin() as c:
+            for table in (appmod.backups, appmod.sessions, appmod.login_throttle, appmod.users):
+                c.execute(table.delete())
+    else:
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/nouvelle.db")
+    fresh = appmod.create_app().test_client()
+    assert login(fresh, "nino", COACH_PW).status_code == 401
+    new_admin = bearer(login(fresh).json["token"])
+    r = fresh.post("/api/admin/import", headers=new_admin, json=dump)
+    assert r.status_code == 200, r.json
+    assert (r.json["users_added"], r.json["backups"]) == (2, 3)
+
+    # tout est revenu : comptes, mots de passe, comptes désactivés, appareils connectés, sauvegardes
+    assert fresh.get("/api/auth/me", headers=coach).json["user"]["username"] == "nino"
+    assert login(fresh, "nino", COACH_PW).status_code == 200
+    assert login(fresh, "lea", "mot-de-passe-lea").status_code == 401
+    assert login(fresh, password="choisi-dans-l-appli").status_code == 200
+    assert fresh.get("/api/auth/me", headers=new_admin).status_code == 200  # l'importateur reste connecté
+    accounts = {u["username"]: u for u in fresh.get("/api/users", headers=new_admin).json["items"]}
+    assert accounts["lea"]["active"] is False and accounts["nino"]["name"] == "Nino"
+    assert [u["role"] for u in accounts.values()].count("admin") == 1
+    latest = fresh.get("/api/backups/latest", headers=coach).json["item"]
+    assert latest["device"] == "d6 · nino" and len(latest["data"]["team"]["players"]) == 7
+
+    # le mot de passe choisi dans l'appli survit au redémarrage du serveur sur la nouvelle base
+    appmod.ensure_admin(fresh.application.config["ENGINE"])
+    assert login(fresh, password="choisi-dans-l-appli").status_code == 200
+
+    # importer deux fois ne crée pas de doublon ; une sauvegarde plus récente reste la dernière
+    fresh.post("/api/backups", headers=coach, json={"device": "après", "data": bundle(1)})
+    again = fresh.post("/api/admin/import", headers=new_admin, json=dump).json
+    assert (again["users_added"], again["users_updated"], again["backups"], again["sessions"]) == (0, 2, 0, 0)
+    assert fresh.get("/api/backups/latest", headers=coach).json["item"]["device"] == "après · nino"
+    assert fresh.get("/api/backups", headers=coach).json["total"] == 3
+
+
+def test_import_refuse_autre_chose(client, admin):
+    assert client.post("/api/admin/import", headers=admin, json={"kind": "autre"}).status_code == 400
+    bad = {"kind": "banc2touche-serveur", "version": 1, "users": [{"username": "x y", "password_hash": "h"}],
+           "sessions": [], "backups": []}
+    assert client.post("/api/admin/import", headers=admin, json=bad).status_code == 400
+    assert client.post("/api/admin/import", headers=admin, json={**bad, "users": "pas une liste"}).status_code == 400

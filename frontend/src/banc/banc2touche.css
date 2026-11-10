@@ -638,3 +638,4 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .accs .si b{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .accs li>form{padding:6px 4px 6px 0}
 .pill.off{background:var(--gold-soft);color:var(--gold-deep)}
+label.btn.off{opacity:.42;pointer-events:none}
