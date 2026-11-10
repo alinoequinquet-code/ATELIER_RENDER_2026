@@ -32,7 +32,7 @@ flowchart LR
 1. **Tests API** : `pytest` sur une vraie base PostgreSQL 16.
 2. **Build front** : `npm ci && npm run build`, et une vérification qu'aucune liste nominative de joueurs n'est dans le dépôt public.
 3. **Image Docker** de l'API, publiée sur GHCR (`ghcr.io/<owner>/b2t-api:<sha>`).
-4. **Terraform** crée ou met à jour l'API et Adminer sur Render. Les services existants sont rattachés puis mis à jour sur place, donc leur adresse ne change pas.
+4. **Terraform** crée l'API et Adminer sur Render s'ils n'existent pas encore. Les services déjà créés sont mis à jour sur place par l'API Render (variables d'environnement, puis nouvelle image), donc leur adresse ne change pas. Le Static Site est reconstruit à la fin.
 5. **Vérification** : le workflow attend que `/info` réponde avec la nouvelle version, puis affiche les adresses dans le résumé du run.
 
 Le Static Site se redéploie tout seul à chaque commit, Render suit la branche `main`.
