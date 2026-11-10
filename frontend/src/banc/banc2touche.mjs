@@ -1375,7 +1375,7 @@ const AUTH=!!(API_FIXED||window.B2T_AUTH);
 let SESSION=AUTH?LS.get('b2t.session',null):null;
 if(SESSION&&!(SESSION.token&&SESSION.user&&SESSION.api&&(!API_FIXED||SESSION.api===API_FIXED)))SESSION=null;
 let API=API_FIXED||(SESSION?SESSION.api:String(LS.get('b2t.api','')||''));
-const ACC={list:null,loading:false,err:'',edit:null,del:null,pw:false,checked:0};
+const ACC={list:null,loading:false,err:'',edit:null,del:null,pw:false,checked:0,imp:null,busy:''};
 const ROLE={admin:'Responsable',coach:'Coach'};
 const isAdmin=()=>!!SESSION&&SESSION.user.role==='admin';
 const apiErr=(status,message)=>Object.assign(new Error(message),{status});
@@ -1485,8 +1485,50 @@ function vAccount(){
       <p class="hint">Note le mot de passe avant de créer le compte : il n’est plus affiché ensuite. En cas d’oubli, tu en mets un nouveau.</p>
     </div>`:''}
   </div>
-  ${adm?`<div class="card"><div class="card-head"><h2>Comptes${ACC.list?`<span class="count">${ACC.list.length}</span>`:''}</h2><button class="btn sm ghost" data-acc="reload">Actualiser</button></div>${usersHTML()}</div>`:''}`;
+  ${adm?`<div class="card"><div class="card-head"><h2>Comptes${ACC.list?`<span class="count">${ACC.list.length}</span>`:''}</h2><button class="btn sm ghost" data-acc="reload">Actualiser</button></div>${usersHTML()}</div>`:''}
+  ${adm?transferHTML():''}`;
 }
+// Changer de base : un fichier de transfert (comptes, appareils connectés, dernières sauvegardes)
+function transferHTML(){
+  const i=ACC.imp,b=ACC.busy;
+  return `<div class="card"><h2>Changer de base de données</h2>
+    <p class="hint">La base gratuite de Render expire 30 jours après sa création. Avant cette date : exporte le fichier de transfert, crée la nouvelle base, mets sa nouvelle adresse dans le secret <b>DATABASE_URL</b> et relance le déploiement. Reconnecte-toi alors avec le mot de passe du secret <b>B2T_ADMIN_PASSWORD</b> et importe aussitôt le fichier ici : comptes, mots de passe et appareils connectés reviennent tels quels.</p>
+    <div class="row"><button class="btn" data-acc="export" ${b?'disabled':''}>${b==='export'?'Export…':'Exporter le fichier de transfert'}</button><label class="btn${b?' off':''}" for="acc-import">Importer un fichier</label><input id="acc-import" class="vh" type="file" accept=".json,application/json" ${b?'disabled':''}></div>
+    ${i?`<div class="bkstate need"><b>Fichier du ${esc(new Date(i.at).toLocaleString('fr-FR',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}))}</b><span>${plural(i.users,'compte')} · ${plural(i.backups,'sauvegarde')} · ${plural(i.sessions,'appareil')} connecté${i.sessions>1?'s':''}. Les comptes du même identifiant sont remplacés par ceux du fichier.</span></div>
+      <div class="row"><button class="btn primary" data-acc="import" ${b?'disabled':''}>${b==='import'?'Import…':'Importer dans cette base'}</button><button class="btn ghost" data-acc="impNo" ${b?'disabled':''}>Annuler</button></div>`:''}
+    <p class="hint">Ce fichier contient les mots de passe sous forme protégée (jamais en clair) et l’effectif : garde-le dans ton iCloud, ne le mets jamais dans GitHub. Importe toujours l’export le plus récent : un ancien fichier remettrait d’anciens mots de passe.</p>
+  </div>`;
+}
+async function exportServer(){
+  ACC.busy='export';accRender();
+  try{
+    const d=await api('/api/admin/export');
+    const name=`banc2touche-serveur-${todayISO()}.json`;
+    const r=await saveFile(name,new Blob([JSON.stringify(d)],{type:'application/json'}),'Fichier de transfert enregistré : '+name);
+    if(r===false)toast('Enregistrement impossible sur cet appareil');
+  }catch(e){toast(e.message)}
+  finally{ACC.busy='';accRender()}
+}
+async function readTransfer(file){
+  if(!file)return;
+  try{
+    const d=JSON.parse(await file.text());
+    if(!d||d.kind!=='banc2touche-serveur'||!Array.isArray(d.users))throw new Error();
+    ACC.imp={data:d,at:d.exported_at,users:d.users.length,backups:(d.backups||[]).length,sessions:(d.sessions||[]).length};
+  }catch(e){ACC.imp=null;toast('Ce n’est pas un fichier de transfert du serveur Banc2Touche')}
+  accRender();
+}
+async function importServer(){
+  if(!ACC.imp)return;
+  ACC.busy='import';accRender();
+  try{
+    const r=await api('/api/admin/import',{method:'POST',body:ACC.imp.data,timeout:120000});
+    ACC.imp=null;ACC.list=null;
+    toast(`Import terminé : ${plural(r.users_added,'compte')} ajouté${r.users_added>1?'s':''}, ${r.users_updated} mis à jour, ${plural(r.backups,'sauvegarde')}, ${plural(r.sessions,'appareil')} reconnecté${r.sessions>1?'s':''}`);
+  }catch(e){toast(e.message)}
+  finally{ACC.busy='';accRender()}
+}
+document.addEventListener('change',e=>{if(e.target.id==='acc-import'){readTransfer(e.target.files&&e.target.files[0]);e.target.value=''}});
 const badName=u=>/^[a-z0-9][a-z0-9._-]{2,39}$/.test(u)?'':'Identifiant : 3 à 40 caractères, lettres sans accent, chiffres, point ou tiret.';
 const badPass=p=>p.length>=8?'':'Mot de passe : 8 caractères au minimum.';
 const FORMS={
@@ -1556,6 +1598,9 @@ document.addEventListener('click',e=>{
     case 'gen':{const i=el.closest('form').elements.password;i.value=genPassword();i.focus();i.select();break}
     case 'toggle':if(u)send({method:'PATCH',body:{active:!u.active}},u.active?`Compte « ${u.username} » désactivé : ses appareils sont déconnectés.`:`Compte « ${u.username} » réactivé`);break;
     case 'del':if(u)send({method:'DELETE'},`Compte « ${u.username} » supprimé`);break;
+    case 'export':exportServer();break;
+    case 'import':importServer();break;
+    case 'impNo':ACC.imp=null;accRender();break;
   }
 });
 if(AUTH){TVIEWS.account=vAccount;TEAM_NAV.push(['account','Compte']);ICONS.account='<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c.9-4 3.9-6 7.5-6s6.6 2 7.5 6"/>'}

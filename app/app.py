@@ -11,6 +11,8 @@ Comptes, réservé au responsable (le seul compte « admin », défini par ADMIN
   POST   /api/users          crée un compte {"username", "name", "password"}
   PATCH  /api/users/<id>     modifie {"username", "name", "password", "active"}
   DELETE /api/users/<id>     supprime un compte
+  GET    /api/admin/export   fichier de transfert : comptes, sessions et dernières sauvegardes
+  POST   /api/admin/import   remet ce fichier dans la base (pour changer de base de données)
 Sauvegardes, pour tout compte connecté (en-tête « Authorization: Bearer <jeton> ») :
   GET  /api/backups          liste des dernières sauvegardes (sans le contenu)
   GET  /api/backups/latest   dernière sauvegarde complète
@@ -33,6 +35,9 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 APP_VERSION = os.getenv("APP_VERSION", "dev")
+EXPORT_KIND = "banc2touche-serveur"
+EXPORT_BACKUPS = 5  # les iPad gardent la version complète : les dernières sauvegardes suffisent
+IMPORT_MAX = 32 * 1024 * 1024
 KEEP = int(os.getenv("BACKUPS_KEEP", "50"))
 SESSION_DAYS = int(os.getenv("SESSION_DAYS", "90"))  # une session inutilisée pendant ce délai expire
 MAX_FAILS = 5  # essais ratés de suite avant de faire patienter
@@ -202,6 +207,11 @@ def create_app():
     def preflight():
         if request.method == "OPTIONS":
             return app.make_default_options_response()
+
+    @app.before_request
+    def bigger_import():
+        if request.path == "/api/admin/import":
+            request.max_content_length = IMPORT_MAX
 
     @app.errorhandler(400)
     @app.errorhandler(401)
@@ -444,6 +454,7 @@ def create_app():
         return out
 
     cols = [backups.c.id, backups.c.created_at, backups.c.device, backups.c.players, backups.c.matches]
+    newest = (backups.c.created_at.desc(), backups.c.id.desc())  # une sauvegarde importée garde sa date
 
     @app.get("/api/backups")
     def list_backups():
@@ -453,7 +464,7 @@ def create_app():
         except ValueError:
             limit = 20
         with engine.connect() as c:
-            rows = c.execute(select(*cols).order_by(backups.c.id.desc()).limit(limit)).all()
+            rows = c.execute(select(*cols).order_by(*newest).limit(limit)).all()
             total = c.execute(select(func.count()).select_from(backups)).scalar_one()
         return jsonify(items=[summary(r) for r in rows], total=total)
 
@@ -461,7 +472,7 @@ def create_app():
     def latest_backup():
         require_user()
         with engine.connect() as c:
-            row = c.execute(select(backups).order_by(backups.c.id.desc()).limit(1)).first()
+            row = c.execute(select(backups).order_by(*newest).limit(1)).first()
         if not row:
             return jsonify(item=None)
         return jsonify(item=full(row))
@@ -494,12 +505,118 @@ def create_app():
         with engine.begin() as c:
             bid = c.execute(insert(backups).values(**row).returning(backups.c.id)).scalar_one()
             # on garde les KEEP dernières versions
-            old = c.execute(select(backups.c.id).order_by(backups.c.id.desc()).offset(KEEP)).scalars().all()
+            old = c.execute(select(backups.c.id).order_by(*newest).offset(KEEP)).scalars().all()
             if old:
                 c.execute(backups.delete().where(backups.c.id.in_(old)))
         row["id"] = bid
         return jsonify(item={"id": bid, "created_at": row["created_at"].isoformat(), "device": device,
                              "players": row["players"], "matches": row["matches"]}), 201
+
+    # ---------- Changer de base de données : export puis import, le responsable seulement ----------
+    @app.get("/api/admin/export")
+    def export_all():
+        require_user(admin=True)
+        t = now()
+        with engine.connect() as c:
+            rows = c.execute(select(users).order_by(users.c.id)).all()
+            names = {r.id: r.username for r in rows}
+            live = c.execute(select(sessions).where(sessions.c.expires_at > t)).all()
+            saved = c.execute(select(backups).order_by(*newest).limit(EXPORT_BACKUPS)).all()
+        out = {
+            "kind": EXPORT_KIND, "version": 1, "exported_at": iso(t),
+            # empreintes des mots de passe et des jetons seulement : rien n'est en clair
+            "users": [{"username": r.username, "name": r.name, "password_hash": r.password_hash, "role": r.role,
+                       "active": bool(r.active), "created_at": iso(r.created_at),
+                       "last_login_at": iso(r.last_login_at)} for r in rows],
+            # les appareils restent connectés après le changement de base
+            "sessions": [{"token_hash": x.token_hash, "username": names[x.user_id], "device": x.device,
+                          "created_at": iso(x.created_at), "last_seen_at": iso(x.last_seen_at),
+                          "expires_at": iso(x.expires_at)} for x in live if x.user_id in names],
+            "backups": [{"created_at": iso(b.created_at), "device": b.device, "players": b.players,
+                         "matches": b.matches, "data": json.loads(b.data)} for b in reversed(saved)],
+        }
+        resp = jsonify(out)
+        resp.headers["Content-Disposition"] = f'attachment; filename="banc2touche-serveur-{t:%Y-%m-%d}.json"'
+        return resp
+
+    def parse_date(value, fallback=None):
+        try:
+            return aware(datetime.fromisoformat(str(value)))
+        except (TypeError, ValueError):
+            return fallback
+
+    @app.post("/api/admin/import")
+    def import_all():
+        me = require_user(admin=True)
+        body = body_json()
+        if body.get("kind") != EXPORT_KIND or body.get("version") != 1:
+            abort(400, "Ce n'est pas un fichier de transfert du serveur Banc2Touche")
+        items = [body.get(k) for k in ("users", "sessions", "backups")]
+        if not all(isinstance(x, list) and all(isinstance(y, dict) for y in x) for x in items):
+            abort(400, "Fichier de transfert mal formé")
+        in_users, in_sessions, in_backups = items
+        t = now()
+        done = {"users_added": 0, "users_updated": 0, "sessions": 0, "backups": 0}
+        with engine.begin() as c:
+            ids = {}
+            for u in in_users:
+                h = u.get("password_hash")
+                if not isinstance(h, str) or not h or len(h) > 255:
+                    abort(400, "Fichier de transfert mal formé : mot de passe manquant")
+                if u.get("role") == "admin":
+                    # le responsable de cette base reste celui des secrets : il reprend son nom et son mot de passe
+                    c.execute(update(users).where(users.c.id == me.id).values(
+                        name=str(u.get("name") or "")[:80], password_hash=h))
+                    ids[clean_username(u.get("username"))] = me.id
+                    continue
+                username = clean_username(u.get("username"))
+                if not USERNAME_RE.match(username):
+                    abort(400, f"Fichier de transfert mal formé : identifiant « {username[:40]} »")
+                values = {"name": str(u.get("name") or "")[:80], "password_hash": h, "active": bool(u.get("active", True)),
+                          "last_login_at": parse_date(u.get("last_login_at"))}
+                old = c.execute(select(users).where(users.c.username == username)).first()
+                if old and old.role == "admin":
+                    continue  # identifiant pris par le responsable de cette base
+                if old:
+                    c.execute(update(users).where(users.c.id == old.id).values(**values))
+                    ids[username] = old.id
+                    done["users_updated"] += 1
+                else:
+                    ids[username] = c.execute(insert(users).values(
+                        username=username, role="coach", created_at=parse_date(u.get("created_at"), t), **values)
+                        .returning(users.c.id)).scalar_one()
+                    done["users_added"] += 1
+            known = set(c.execute(select(sessions.c.token_hash)).scalars().all())
+            for x in in_sessions:
+                th, uid = str(x.get("token_hash") or ""), ids.get(clean_username(x.get("username")))
+                expires = parse_date(x.get("expires_at"))
+                if not uid or not re.fullmatch(r"[0-9a-f]{64}", th) or th in known or not expires or expires <= t:
+                    continue
+                c.execute(insert(sessions).values(
+                    token_hash=th, user_id=uid, device=str(x.get("device") or "")[:80],
+                    created_at=parse_date(x.get("created_at"), t), last_seen_at=parse_date(x.get("last_seen_at"), t),
+                    expires_at=expires))
+                known.add(th)
+                done["sessions"] += 1
+            seen = {(iso(r.created_at), r.device) for r in c.execute(select(backups.c.created_at, backups.c.device)).all()}
+            added = []
+            for b in sorted(in_backups, key=lambda b: str(b.get("created_at") or "")):
+                data, created = b.get("data"), parse_date(b.get("created_at"))
+                if not isinstance(data, dict) or data.get("app") != "banc2touche" or not created:
+                    continue
+                device = str(b.get("device") or "")[:80]
+                if (iso(created), device) in seen:
+                    continue
+                added.append(c.execute(insert(backups).values(
+                    created_at=created, device=device, players=int(b.get("players") or 0),
+                    matches=int(b.get("matches") or 0), data=json.dumps(data, ensure_ascii=False))
+                    .returning(backups.c.id)).scalar_one())
+                seen.add((iso(created), device))
+            old = set(c.execute(select(backups.c.id).order_by(*newest).offset(KEEP)).scalars().all())
+            if old:
+                c.execute(backups.delete().where(backups.c.id.in_(old)))
+            done["backups"] = len([i for i in added if i not in old])  # trop anciennes : tout de suite retirées
+        return jsonify(ok=True, **done)
 
     return app
 

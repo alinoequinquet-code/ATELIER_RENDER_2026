@@ -47,7 +47,7 @@ Le Static Site se redéploie tout seul à chaque commit, Render suit la branche 
    - `B2T_ADMIN_USER` : ton identifiant de responsable (3 à 40 caractères : lettres sans accent, chiffres, point ou tiret)
    - `B2T_ADMIN_PASSWORD` : ton mot de passe de départ (8 caractères au minimum), à ne donner à personne
 3. **Activer les Actions** (onglet Actions du fork), puis faire un commit. Le résumé du run donne l'adresse de l'API.
-4. **Front** : Render → New → Static Site → Public Git Repository → ce dépôt
+4. **Front** : Render → New → Static Site → Public Git Repository → ce dépôt (déjà créé : https://banc2touche.onrender.com)
    - Root Directory : `frontend`
    - Build Command : `npm ci && npm run build`
    - Publish Directory : `build`
@@ -75,6 +75,19 @@ Chaque coach peut changer son propre mot de passe et se déconnecter depuis la m
 
 **Limite à connaître** : l'écran de connexion protège l'accès au serveur et à l'appli, pas les données déjà enregistrées sur un iPad. Un coach désactivé perd l'accès à l'appli dès que son appareil retrouve du réseau, mais l'effectif déjà présent dans la mémoire de son appareil n'est pas effacé à distance.
 
+## Changer de base de données
+
+La base gratuite de Render expire 30 jours après sa création. Pour passer à une nouvelle base (gratuite ou payante) sans rien perdre :
+
+1. **Avant l'expiration**, dans l'appli : **Effectif → Compte → Changer de base de données → Exporter le fichier de transfert**. Range le fichier dans ton iCloud.
+2. Crée la nouvelle base sur Render (New → Postgres, région Frankfurt) et copie son **Internal Database URL**.
+3. Remplace le secret GitHub `DATABASE_URL` par cette adresse, puis relance le workflow (onglet Actions → CI/CD Banc2Touche → Run workflow, branche `main`).
+4. Dans l'appli, reconnecte-toi avec le mot de passe du secret `B2T_ADMIN_PASSWORD`, puis **Importer un fichier** → **Importer dans cette base**.
+
+Les comptes, leurs mots de passe, les appareils connectés et les 5 dernières sauvegardes reviennent tels quels : les coachs n'ont pas à se reconnecter. Fais l'import juste après le déploiement : un appareil qui s'ouvre entre les deux est déconnecté.
+
+Le fichier contient les mots de passe sous forme hachée et l'effectif (des mineurs). Il ne va jamais dans GitHub : le dépôt est public.
+
 ## Routes de l'API
 
 | Route | Accès | Rôle |
@@ -90,6 +103,8 @@ Chaque coach peut changer son propre mot de passe et se déconnecter depuis la m
 | `POST /api/users` | responsable | crée un compte `{"username", "name", "password"}` |
 | `PATCH /api/users/<id>` | responsable | modifie `{"username", "name", "password", "active"}` |
 | `DELETE /api/users/<id>` | responsable | supprime un compte |
+| `GET /api/admin/export` | responsable | fichier de transfert : comptes, appareils connectés, 5 dernières sauvegardes |
+| `POST /api/admin/import` | responsable | remet ce fichier dans la base |
 | `GET /api/backups` | connecté | liste des versions enregistrées |
 | `GET /api/backups/latest` | connecté | dernière version complète |
 | `GET /api/backups/<id>` | connecté | une version complète |
@@ -113,5 +128,5 @@ B2T_API_URL=http://localhost:10000 npm run serve   # http://localhost:8080
 ## Données et limites
 
 - **Données personnelles** : l'effectif contient des mineurs. Aucune liste de joueurs n'est dans ce dépôt public : elle arrive par l'appli, et seuls les comptes créés par le responsable y ont accès. Adminer demande les identifiants de la base. Le mettre en pause quand on ne s'en sert pas.
-- **Plan gratuit Render** : une base PostgreSQL gratuite expire **30 jours** après sa création (14 jours de grâce pour passer à un plan payant). Avec une nouvelle base, le compte du responsable est recréé tout seul, mais les comptes des coachs sont à recréer et leurs appareils doivent se reconnecter. Un service web gratuit s'endort après 15 minutes sans visite et met environ une minute à se réveiller. L'appli reste utilisable sans réseau pendant ce temps.
+- **Plan gratuit Render** : une base PostgreSQL gratuite expire **30 jours** après sa création (14 jours de grâce pour passer à un plan payant). Voir « Changer de base de données » pour passer à une nouvelle base sans rien perdre. Un service web gratuit s'endort après 15 minutes sans visite et met environ une minute à se réveiller. L'appli reste utilisable sans réseau pendant ce temps.
 - **Sans réseau** : seule la première connexion demande du réseau. Ensuite la saisie en match ne dépend jamais du serveur. La synchronisation se fait quand on veut, depuis Effectif → Sauvegarde → « Synchroniser avec le serveur ».
