@@ -253,7 +253,7 @@ textarea.in.dg-txt{min-height:170px;font-size:17px}
 /* ---------- Gardien ---------- */
 .big{font:800 64px/1 var(--display);font-variant-numeric:tabular-nums}
 .heat{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;border:7px solid var(--ink);border-bottom:0;padding:6px;border-radius:6px 6px 0 0;max-width:440px;width:100%}
-.heat div{aspect-ratio:1.45;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2)}
+.heat div{aspect-ratio:2.2;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2)}
 .heat b{font:800 26px/1 var(--display);font-variant-numeric:tabular-nums}
 .heat span{font-size:12.5px}
 
@@ -462,6 +462,51 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .lv-svg .court{width:100%;height:auto}
 .btn.sm{min-height:38px;padding:0 12px;font-size:14px}
 @media (max-width:680px){.lv{grid-template-columns:minmax(0,1fr);grid-template-areas:"team" "act" "players" "where" "feed"}.lv-wgrid{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- Onglet Gardiens : saisie des tirs ---------- */
+.gki{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"top top" "court goal" "res res";align-items:start}
+.gki-top{grid-area:top;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.gki-court{grid-area:court}.gki-goal{grid-area:goal}.gki-res{grid-area:res}
+.gki>.card{border-top:5px solid var(--accent)}
+.gki.is-opp>.card{border-top-color:var(--opp)}
+.gki.is-opp .gki-res,.gki.is-opp .gki-court{--accent:var(--opp);--accent-ink:var(--opp-ink)}
+.gki .step{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:800 16px/1 var(--display);margin-right:8px;vertical-align:3px;font-style:normal}
+.gki.is-opp .step{background:var(--opp);color:var(--opp-ink)}
+.gki .step.done{background:var(--good);color:#fff}
+.gk-pick{display:flex;gap:6px;flex-wrap:wrap}
+.gk-pick .ptile{min-width:104px;min-height:48px}
+.gk-opp{font-weight:700;color:var(--muted)}
+.gki-tally{margin-left:auto;display:flex;align-items:center;gap:10px}
+.gki-tally b{font:italic 800 34px/1 var(--display);color:var(--ink)}
+.gki-tally span{font-size:12.5px;color:var(--muted);line-height:1.3}
+.gki .lv-svg{display:flex;justify-content:center;align-items:center;min-height:0}
+.gki .lv-svg .court{width:100%;height:auto}
+.gki .lv-svg.off{opacity:.3;pointer-events:none}
+.seg.sm button{min-height:36px;padding:0 10px;font-size:13px}
+.bgoal{display:flex;flex-direction:column;width:100%;max-width:560px;margin:0 auto}
+.bg-frame{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,minmax(58px,1fr));gap:6px;padding:7px;border:10px solid transparent;border-bottom:0;border-image:repeating-linear-gradient(45deg,#D7263D 0 11px,#fff 11px 22px) 10;background:repeating-linear-gradient(0deg,transparent 0 15px,color-mix(in srgb,var(--ink) 9%,transparent) 15px 16px),repeating-linear-gradient(90deg,transparent 0 15px,color-mix(in srgb,var(--ink) 9%,transparent) 15px 16px),var(--surface-2)}
+.bg-line{height:5px;background:var(--ink);margin:0 -4px;border-radius:2px}
+.bg-sp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:9px}
+.bgoal button{border:1.5px dashed color-mix(in srgb,var(--ink) 30%,transparent);background:color-mix(in srgb,var(--surface) 80%,transparent);border-radius:9px;font:700 15px/1.1 var(--body);color:var(--ink);padding:4px;min-height:58px;hyphens:manual}
+.bg-sp button{border-style:solid;min-height:52px}
+.bgoal button[aria-pressed="true"]{background:var(--gold);border:2px solid var(--gold-deep);color:var(--gold-ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 40%,transparent)}
+.gki-res{display:flex;flex-direction:column;gap:10px}
+.gki-res .sel{min-height:40px}
+.gki-big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gres{min-height:96px;border:0;border-radius:14px;font:italic 800 34px/1 var(--display);text-transform:uppercase;letter-spacing:.03em;color:#fff;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.gres.good{background:var(--good)}.gres.bad{background:var(--bad)}
+.gres:active{transform:translateY(2px);box-shadow:none}
+.gki-small{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gki-feed{display:flex;flex-direction:column;gap:6px;min-height:0}
+.gki-feed .feed{overflow:auto}
+@media (max-width:680px){.gki{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "court" "goal" "res"}}
+/* ---------- Onglet Stats : espace sur la ligne de défense ---------- */
+.espline{display:grid;grid-template-columns:repeat(6,minmax(0,1fr) 20px) minmax(0,1fr);align-items:center;gap:4px}
+.espline button{min-height:56px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);font:800 16px/1 var(--display);color:var(--ink);padding:0;min-width:0}
+.espline button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 3px var(--gold)}
+.espline i{width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--surface);font:700 10px/20px var(--body);text-align:center;font-style:normal}
+.espline.off{opacity:.35}
+.esp6m{border-top:3px dashed var(--line);margin-top:2px;padding-top:4px;text-align:center;font-size:11.5px;color:var(--muted)}
 /* ---------- Espaces 0-1 … 6-0 ---------- */
 .esp-ray{stroke:var(--lines);stroke-width:.07;stroke-dasharray:.32 .26;opacity:.5}
 .espstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -510,8 +555,17 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .card{padding:12px 14px;gap:10px}
   body.fit .fx{flex:1 1 auto;min-height:0;align-items:stretch}
   body.fit .fx>.card,body.fit .fx>.side{min-height:0;overflow:auto}
+  body.fit .gki{flex:1 1 auto;min-height:0;align-items:stretch;gap:10px}
+  body.fit .gki>.card{min-height:0;overflow:hidden}
+  body.fit .gki-top{padding-block:8px}
+  body.fit .gki-court .lv-svg{flex:1 1 0;min-height:0}
+  body.fit .gki-court .lv-svg .court{height:100%;width:100%}
+  body.fit .gki-goal .bgoal{flex:1 1 0;min-height:0}
+  body.fit .gki-goal .bg-frame{flex:1 1 0;min-height:0}
+  body.fit .gki-feed{flex:1 1 0}
   body.fit .lv{flex:1 1 auto;min-height:0;align-items:stretch;gap:10px}
   body.fit .lv>.card{min-height:0;overflow:auto}
+  body.fit .lv>.lv-where{min-height:auto;overflow:visible}
   body.fit .lv-where{overflow:hidden}
   body.fit .lv-where .lv-wgrid{flex:1 1 0;min-height:0}
   body.fit .lv-where .lv-svg{min-height:0;height:100%}
@@ -553,7 +607,8 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .gkg .big{font-size:52px}
 }
 @media (min-width:740px) and (min-height:600px) and (orientation:landscape){
-  body.fit .lv{grid-template-columns:minmax(250px,.78fr) minmax(0,.86fr) minmax(0,1.36fr);grid-template-rows:auto minmax(0,1fr) minmax(0,.58fr);grid-template-areas:"team team team" "act players where" "act feed where"}
+  body.fit .lv{grid-template-columns:minmax(260px,.85fr) minmax(0,1fr) minmax(0,1.1fr);grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"team team team" "act players where" "act players feed"}
+  body.fit .gki{grid-template-columns:minmax(0,1.38fr) minmax(0,1fr) minmax(240px,.7fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top top" "court goal res"}
   body.fit .lv-team{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:12px;padding-block:8px}
   body.fit .lv-team .score{margin-left:0;order:-1;padding-right:6px}
   body.fit .lv-team .seg.big button{padding:0 18px}
@@ -577,7 +632,9 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .head{flex-wrap:nowrap;gap:10px}
   body.fit .head .seg button{padding:0 10px}
   body.fit .lv-team{padding-block:8px}
-  body.fit .lv{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) minmax(0,.4fr);grid-template-areas:"team team" "act players" "where where" "feed feed"}
+  body.fit .lv{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr);grid-template-areas:"team team" "act players" "where where" "feed feed"}
+  body.fit .gki{grid-template-rows:auto minmax(0,.9fr) minmax(0,1fr);grid-template-areas:"top top" "court court" "goal res"}
+  body.fit .gres{min-height:84px}
   body.fit .lv-team .swap{max-width:220px;white-space:normal;line-height:1.15}
   body.fit .lv-wgrid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);height:100%}
   body.fit .lv-team{flex-wrap:nowrap;gap:8px}

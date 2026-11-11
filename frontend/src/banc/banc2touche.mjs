@@ -37,12 +37,13 @@ const DEFS=['0-6','1-5','3-2-1','3-3','4-2','5+1','4+2','Homme à homme','Autre'
 const ZONES=[['AIL-G','Aile gauche',1.3,3.4],['6M-G','6 m gauche',5.2,7.6],['6M-C','6 m centre',10,8.1],['6M-D','6 m droite',14.8,7.6],['AIL-D','Aile droite',18.7,3.4],['9M-G','9 m gauche',4.2,11],['9M-C','9 m centre',10,11.2],['9M-D','9 m droite',15.8,11],['LOIN','Tir lointain',10,13.7],['7M','Jet de 7 m',10,7]];
 const ZL=Object.fromEntries(ZONES.map(z=>[z[0],z[1]]));
 // Zones dans le but, notées vue du tireur
-const GZ=[['HG','Haut gauche'],['HD','Haut droite'],['BG','Bas gauche'],['BD','Bas droite'],['LOB','Lob'],['CONT','Contournement'],['SOUS','Sous le gardien']];
+const GZ=[['HG','Haut gauche'],['MG','Milieu gauche'],['BG','Bas gauche'],['HD','Haut droite'],['MD','Milieu droite'],['BD','Bas droite'],['SOUS','Sous le gardien'],['CONT','Contournement'],['LOB','Lob']];
+const GZ6=[['HG','HD'],['MG','MD'],['BG','BD']],GZX=['SOUS','CONT','LOB'];
 const GZL=Object.fromEntries(GZ);
-const GZT={HG:'en haut à gauche',HD:'en haut à droite',BG:'en bas à gauche',BD:'en bas à droite',LOB:'en lob',CONT:'en contournant le gardien',SOUS:'sous le gardien'};
-const GZ_OLD={1:'HG',2:'LOB',3:'HD',4:'HG',5:'SOUS',6:'HD',7:'BG',8:'SOUS',9:'BD'};
+const GZT={HG:'en haut à gauche',MG:'à mi-hauteur à gauche',BG:'en bas à gauche',HD:'en haut à droite',MD:'à mi-hauteur à droite',BD:'en bas à droite',LOB:'en lob',CONT:'en contournant le gardien',SOUS:'sous le gardien'};
+const GZ_OLD={1:'HG',2:'LOB',3:'HD',4:'MG',5:'SOUS',6:'MD',7:'BG',8:'SOUS',9:'BD'};
 const cz=e=>{const c=e&&e.cage;if(c==null||c==='')return null;return GZL[c]?c:(GZ_OLD[+c]||null)};
-const mirrorZ=k=>({HG:'HD',HD:'HG',BG:'BD',BD:'BG'})[k]||k;
+const mirrorZ=k=>({HG:'HD',HD:'HG',MG:'MD',MD:'MG',BG:'BD',BD:'BG'})[k]||k;
 const SIDEL={dom:'À domicile',ext:'À l’extérieur',neutre:'Terrain neutre'};
 const SIDES={dom:'Domicile',ext:'Extérieur',neutre:'Terrain neutre'};
 const NTAGS=['Attaque','Défense','Gardien','Adversaire','À revoir'];
@@ -76,11 +77,11 @@ function normalize(m){
 /* ---------- État ---------- */
 const PHASES=[
   ['avant','Avant','Avant le match',[['match','Feuille'],['compo','Compo'],['scout','Adversaire']]],
-  ['pendant','Pendant','Pendant le match',[['stats','Stats'],['gk','Gardien'],['notes','Notes'],'Mi-temps',['bilan','Bilan'],['cage','Cage'],['tactic','Tactique']]],
+  ['pendant','Pendant','Pendant le match',[['gkin','Gardiens'],['stats','Stats'],['notes','Notes'],'Mi-temps',['bilan','Bilan'],['gk','Bilan GB'],['cage','Cage'],['tactic','Tactique']]],
   ['apres','Après','Après le match',[['report','Rapport'],['history','Historique']]]];
 const phaseOf=v=>(PHASES.find(p=>p[3].some(it=>Array.isArray(it)&&it[0]===v))||PHASES[1])[0];
-const UI0={act:null,autoPoss:true,esp:null,czBy:'zone',czEsp:'',bilBy:'zone',czSide:'opp',czZone:'',czPer:0,czView:'gk',czGk:'',autoSwap:true,half:1,team:'us',p:null,zone:null,xy:null,cage:null,phase:'placed',oppDef:'0-6',gk:'',pick:null,gkSide:'us',gkSel:'',gkPer:0,noteTag:'',noteFilter:'',noteDraft:'',noteMin:'',bilPer:1,repPer:0,confirmDel:null,tdel:null,tsel:null,tconf:false};
-const S={m:null,mode:'match',tview:'team',tp:null,view:'stats',lastV:{avant:'match',pendant:'stats',apres:'report'},ui:Object.assign({},UI0),tac:null,sync:'local'};
+const UI0={gkTeam:'opp',gkXy:null,gkZone:null,gkCage:null,gkSeven:false,gkView:'shooter',act:null,autoPoss:true,esp:null,czBy:'zone',czEsp:'',bilBy:'zone',czSide:'opp',czZone:'',czPer:0,czView:'gk',czGk:'',autoSwap:true,half:1,team:'us',p:null,zone:null,xy:null,cage:null,phase:'placed',oppDef:'0-6',gk:'',pick:null,gkSide:'us',gkSel:'',gkPer:0,noteTag:'',noteFilter:'',noteDraft:'',noteMin:'',bilPer:1,repPer:0,confirmDel:null,tdel:null,tsel:null,tconf:false};
+const S={m:null,mode:'match',tview:'team',tp:null,view:'gkin',lastV:{avant:'match',pendant:'gkin',apres:'report'},ui:Object.assign({},UI0),tac:null,sync:'local'};
 const MC={};               // copies des matchs en mémoire
 let IDX=LS.get('hb.idx',[]); if(!Array.isArray(IDX))IDX=[];
 
@@ -88,7 +89,7 @@ const pById=id=>S.m.players.find(p=>p.id===id);
 const pLab=(id,short)=>{const p=pById(id);if(!p)return 'joueur retiré';return p.num?'n°'+p.num+(short||!p.name?'':' '+p.name):(p.name||'Joueur')};
 const ptag=p=>p.num||String(p.name||'?').split(/\s+/).map(w=>w.charAt(0)).join('').slice(0,2).toUpperCase();
 const gks=()=>S.m.players.filter(p=>p.pos==='GB'||altOf(p).includes('GB')).sort((a,b)=>((a.pos==='GB'?0:1)-(b.pos==='GB'?0:1))||numSort(a,b));
-function saveUI(){LS.set('hb.ui',{mode:S.mode,tview:S.tview,tp:S.tp,view:S.view,lastV:S.lastV,autoSwap:S.ui.autoSwap,autoPoss:S.ui.autoPoss,half:S.ui.half,oppDef:S.ui.oppDef,gk:S.ui.gk})}
+function saveUI(){LS.set('hb.ui',{mode:S.mode,tview:S.tview,tp:S.tp,view:S.view,lastV:S.lastV,autoSwap:S.ui.autoSwap,autoPoss:S.ui.autoPoss,gkView:S.ui.gkView,gkTeam:S.ui.gkTeam,half:S.ui.half,oppDef:S.ui.oppDef,gk:S.ui.gk})}
 function goView(v){
   const before=phaseOf(S.view);if(phaseOf(v)==='apres'&&before!=='apres')maybeSnap('fin de match');S.mode='match';S.view=v;S.lastV[phaseOf(v)]=v;S.ui.confirmDel=null;
   if(v==='bilan')S.ui.bilPer=S.ui.half;
@@ -102,7 +103,15 @@ const dirty=new Set();
 const SYNC={local:'Enregistré sur cet appareil',cloud:'Enregistré',pending:'Enregistrement…',error:'Hors ligne · gardé sur l’iPad'};
 function setSync(s){S.sync=s;const el=$('#sync');if(el){el.dataset.s=s;el.lastChild.textContent=SYNC[s]}}
 function col(){return DB.collection('data/users/'+UIDU)}
-function scoreOf(m){let us=0,op=0;for(const e of m.events){if(e.type==='shot'&&e.res==='goal'){if(e.team==='us')us++;else op++}}return{us,op}}
+// Deux registres : l'onglet Gardiens (src:'gk' : terrain, cage, arrêts) et l'onglet Stats (le reste).
+// Score, joueurs, phases, espaces : onglet Stats. Terrain, cage, gardiens : onglet Gardiens.
+// Pour chaque équipe, si un onglet n'a rien de relevé, on prend l'autre : jamais de tir compté deux fois.
+const isGkEv=e=>e.src==='gk';
+function stEv(L){const st=L.filter(e=>!isGkEv(e)),gk=L.filter(isGkEv),out=st.slice();['us','opp'].forEach(t=>{if(!st.some(e=>e.team===t&&e.type==='shot'))out.push(...gk.filter(e=>e.team===t))});return out.sort((a,b)=>a.ts-b.ts)}
+// tirs saisis avant les deux onglets (terrain et cage dans la même action) : comptés aussi côté gardiens
+const hasLoc=e=>!!(cz(e)||(e.zone&&e.zone!=='7M')||e.x!=null);
+function gkEv(L){const st=L.filter(e=>!isGkEv(e)&&e.type==='shot'),gk=L.filter(isGkEv),out=gk.concat(st.filter(hasLoc));['us','opp'].forEach(t=>{if(!gk.some(e=>e.team===t))out.push(...st.filter(e=>e.team===t&&!hasLoc(e)))});return out.sort((a,b)=>a.ts-b.ts)}
+function scoreOf(m){let us=0,op=0;for(const e of stEv(m.events)){if(e.type==='shot'&&e.res==='goal'){if(e.team==='us')us++;else op++}}return{us,op}}
 function upsertIdx(m){
   const sc=scoreOf(m);const row={id:m.id,opponent:m.opponent,date:m.date,updatedAt:m.updatedAt,us:sc.us,op:sc.op,n:m.events.length};
   const i=IDX.findIndex(x=>x.id===m.id);if(i<0)IDX.push(row);else IDX[i]=row;LS.set('hb.idx',IDX);
@@ -219,7 +228,7 @@ const shotsOf=(L,team)=>L.filter(e=>e.team===team&&e.type==='shot');
 const goals=a=>a.filter(e=>e.res==='goal').length;
 const cnt=(L,team,type)=>L.filter(e=>e.team===team&&e.type===type).length;
 function gkStat(L,side,gkId){
-  const sh=shotsOf(L,side==='us'?'opp':'us').filter(e=>(e.res==='goal'||e.res==='saved')&&(!gkId||e.gk===gkId));
+  const sh=shotsOf(gkEv(L),side==='us'?'opp':'us').filter(e=>(e.res==='goal'||e.res==='saved')&&(!gkId||e.gk===gkId));
   const s=sh.filter(e=>e.res==='saved').length;return{t:sh.length,s,g:sh.length-s};
 }
 function zoneRows(arr){const o={};arr.forEach(e=>{if(!e.zone)return;const z=o[e.zone]||(o[e.zone]={z:e.zone,t:0,g:0});z.t++;if(e.res==='goal')z.g++});return Object.values(o)}
@@ -240,19 +249,19 @@ function evText(e){
   return b.join(' · ');
 }
 function insights(m,L){
-  const out=[],us=shotsOf(L,'us'),op=shotsOf(L,'opp');
+  const Ls=stEv(L),Lg=gkEv(L),out=[],us=shotsOf(Ls,'us'),op=shotsOf(Ls,'opp'),usg=shotsOf(Lg,'us'),opg=shotsOf(Lg,'opp');
   const ph=(a,k)=>a.filter(e=>k.includes(e.phase));
   const pl=ph(us,['placed']);if(pl.length>=3)out.push(`En attaque placée, nous marquons ${goals(pl)} tirs sur ${pl.length} (${pct(goals(pl),pl.length)}).`);
   const fast=ph(us,['ca','second','quick']);if(fast.length)out.push(`Sur jeu rapide (contre-attaque, montée de balle, engagement rapide) : ${goals(fast)} buts sur ${fast.length} tirs.`);
   const of=ph(op,['ca','second','quick']);if(goals(of)>=2)out.push(`${goals(of)} buts encaissés sur jeu rapide adverse.`);
-  const zw=zoneRows(us.filter(e=>e.zone!=='7M')).filter(z=>z.t>=3).sort((a,b)=>a.g/a.t-b.g/b.t);
+  const zw=zoneRows(usg.filter(e=>e.zone!=='7M')).filter(z=>z.t>=3).sort((a,b)=>a.g/a.t-b.g/b.t);
   if(zw.length&&zw[0].g/zw[0].t<.4)out.push(`Notre zone la moins efficace : ${ZL[zw[0].z]} (${zw[0].g}/${zw[0].t}).`);
-  const zo=zoneRows(op).sort((a,b)=>b.g-a.g);if(zo.length&&zo[0].g>=2)out.push(`L’adversaire marque surtout depuis : ${ZL[zo[0].z]} (${zo[0].g} buts).`);
+  const zo=zoneRows(opg).sort((a,b)=>b.g-a.g);if(zo.length&&zo[0].g>=2)out.push(`L’adversaire marque surtout depuis : ${ZL[zo[0].z]} (${zo[0].g} buts).`);
   const losses=L.filter(e=>e.team==='us'&&e.type==='loss');
   if(losses.length>=3){const by=Object.entries(countBy(losses.filter(e=>e.p),e=>e.p)).sort((a,b)=>b[1]-a[1])[0];out.push(`${losses.length} pertes de balle${by&&by[1]>=2?`, dont ${by[1]} pour ${pLab(by[0])}`:''}.`)}
-  const ag=op.filter(e=>e.res==='goal'&&cz(e));
+  const ag=opg.filter(e=>e.res==='goal'&&cz(e));
   if(ag.length>=3){const by=Object.entries(countBy(ag,cz)).sort((a,b)=>b[1]-a[1])[0];if(by[1]>=2)out.push(`Buts encaissés le plus souvent ${GZT[by[0]]} (vue du tireur) : ${by[1]}.`)}
-  const ok=us.filter(e=>e.res==='goal'&&cz(e));
+  const ok=usg.filter(e=>e.res==='goal'&&cz(e));
   if(ok.length>=3){const by=Object.entries(countBy(ok,cz)).sort((a,b)=>b[1]-a[1])[0];if(by[1]>=2)out.push(`Le gardien adverse prend le plus de buts ${GZT[by[0]]} (vue du tireur) : ${by[1]}.`)}
   return out;
 }
@@ -263,7 +272,7 @@ function csvRows(m){
   return m.events.slice().sort((a,b)=>a.ts-b.ts).map((e,i)=>{
     const num=e.team==='us'?(pById(e.p)?pById(e.p).num:''):(e.p||'');
     const gk=e.gk&&pById(e.gk)?pById(e.gk).num:'';
-    return [i+1,'',e.half,'',e.team==='us'?'Nous':'Adversaire',TYPEL[e.type],num,e.type==='shot'?RESL[e.res]:'',e.zone||'',cz(e)?GZL[cz(e)]:'',e.type==='shot'?PHL[e.phase]||'':'',e.phase==='seven'?'7m':'','','',e.team==='us'?(e.def||''):'',gk,''];
+    return [i+1,'',e.half,'',e.team==='us'?'Nous':'Adversaire',TYPEL[e.type],num,e.type==='shot'?RESL[e.res]:'',e.zone||'',cz(e)?GZL[cz(e)]:'',e.type==='shot'?PHL[e.phase]||'':'',e.phase==='seven'?'7m':'','','',e.team==='us'?(e.def||''):'',gk,isGkEv(e)?'onglet Gardiens':''];
   });
 }
 function buildCSV(m){const q=v=>{v=String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};return [CSVH,...csvRows(m)].map(r=>r.map(q).join(';')).join('\r\n')}
@@ -307,6 +316,25 @@ function commit(type,res){
   if(swap)u.team=u.team==='us'?'opp':'us';
   renderView();renderHeader();
   toast(evText(e)+(swap?(u.team==='us'?' · à nous':' · à l’adversaire'):''),{label:'Annuler',fn:()=>{removeEv(e.id);if(swap){S.ui.team=e.team;renderView()}}});
+}
+function commitGk(res){
+  const u=S.ui,m=S.m,team=u.gkTeam;
+  const e={id:uid(),ts:Date.now(),half:u.half,team,type:'shot',src:'gk',res};
+  if(u.gkSeven)Object.assign(e,{zone:'7M',x:10,y:7,phase:'seven'});
+  else Object.assign(e,{zone:u.gkZone,x:u.gkXy?u.gkXy.x:null,y:u.gkXy?u.gkXy.y:null,phase:null});
+  e.cage=res==='goal'||res==='saved'?(u.gkCage||null):null;
+  if(team==='opp')e.gk=u.gk||null;
+  m.events.push(e);touch();
+  u.gkXy=null;u.gkZone=null;u.gkCage=null;u.gkSeven=false;
+  renderView();renderHeader();
+  toast(evText(e),{label:'Annuler',fn:()=>removeEv(e.id)});
+}
+function gkTap(ev,svg){
+  if(!svg||!svg.getScreenCTM)return;
+  const p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;const r=p.matrixTransform(svg.getScreenCTM().inverse());
+  if(r.y<0)return;
+  const x=Math.round(Math.max(0,Math.min(20,r.x))*10)/10,y=Math.round(Math.min(14.2,r.y)*10)/10;
+  S.ui.gkXy={x,y};S.ui.gkZone=zoneAt(x,y);S.ui.gkSeven=false;renderView();
 }
 function record(){const a=S.ui.act;if(!a){toast('Choisis d’abord l’action : but, arrêt, perte de balle…');return}commit(a==='loss'?'loss':'shot',a==='loss'?undefined:a)}
 function removeEv(id,withUndo){
@@ -407,6 +435,7 @@ const ICONS={
   compo:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="11" r="2"/><circle cx="19" cy="11" r="2"/><circle cx="8" cy="18.5" r="2"/><circle cx="16" cy="18.5" r="2"/>',
   scout:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
   stats:'<path d="M5 20V11M10 20V4M15 20v-7M20 20v-4"/>',
+  gkin:'<path d="M3 18V6h18v12"/><path d="M9 6v12M15 6v12M3 10h18M3 14h18" stroke-width="1" opacity=".55"/><path d="M12 22l-1.6-3.2M12 22l1.6-3.2" opacity=".0"/><circle cx="16.6" cy="8.1" r="1.9" fill="currentColor" stroke="none"/>',
   gk:'<path d="M3 20V5h18v15"/><path d="M7.5 5v15M12 5v15M16.5 5v15M3 10h18M3 15h18" stroke-width="1" opacity=".6"/>',
   notes:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   tactic:'<circle cx="6" cy="18" r="2.2"/><path d="M8 16c3-3 4-8 10-9"/><path d="M15 4.6l3.2 2.4-2.6 3.1"/>',
@@ -521,10 +550,6 @@ function vScout(){
 const PH_LIVE=[['placed','Attaque placée'],['ca','Contre-attaque'],['second','Montée de balle'],['quick','Engagement rapide'],['seven','7 m']];
 const ACTS=[['goal','But'],['saved','Arrêté'],['miss','Hors cadre'],['post','Poteau'],['blocked','Contré'],['loss','Perte de balle']];
 const photoOf=id=>{const t=tById(id);return t&&t.photo?t.photo:''};
-function goalPicker(sel,off){
-  const b=k=>`<button data-act="cage" data-v="${k}" aria-pressed="${sel===k}" aria-label="${GZL[k]}" ${off?'disabled':''}>${k==='CONT'?'Contour&shy;nement':GZL[k]}</button>`;
-  return `<div class="gpick" role="group" aria-label="Zone dans le but, vue du tireur"><div class="gp-goal">${['HG','HD','BG','BD'].map(b).join('')}</div><div class="gp-sp">${['LOB','CONT','SOUS'].map(b).join('')}</div></div>`;
-}
 function vStats(){
   const m=S.m,u=S.ui,us=u.team==='us',sc=scoreOf(m);
   if(!u.gk||!pById(u.gk))u.gk=defaultGK();
@@ -532,8 +557,8 @@ function vStats(){
   const labels=ZONES.filter(z=>z[0]!=='7M').map(z=>`<text class="zl ${u.zone===z[0]?'on':''}" x="${z[2]}" y="${z[3]}">${z[0]}</text>`).join('');
   const mk=u.xy?`<circle class="mk" cx="${u.xy.x}" cy="${u.xy.y}" r=".55"/>`:'';
   const actL=u.act?(loss?'Perte de balle':RTXT[u.act]):null;
-  const recap=[actL,us&&u.p&&pById(u.p)?pLab(u.p):(!us&&u.gk&&pById(u.gk)&&!loss?'face à '+pLab(u.gk):null),seven?'Jet de 7 m':(u.zone?ZL[u.zone]:null),u.esp&&!seven?'espace '+u.esp:null,u.cage?GZL[u.cage].toLowerCase():null,u.phase!=='placed'&&!seven&&!loss?PHS[u.phase].toLowerCase():null].filter(Boolean);
-  const feed=m.events.slice(-6).reverse();
+  const recap=[actL,us&&u.p&&pById(u.p)?pLab(u.p):(!us&&u.gk&&pById(u.gk)&&!loss?'face à '+pLab(u.gk):null),seven?'Jet de 7 m':null,u.esp&&!seven?'espace '+u.esp:null,u.phase!=='placed'&&!seven&&!loss?PHS[u.phase].toLowerCase():null].filter(Boolean);
+  const stv=m.events.filter(e=>!isGkEv(e)),feed=stv.slice(-6).reverse();
   const teamName=us?'Nous':'Adversaire';
   const av=id=>{const ph=photoOf(id);return ph?`<img class="pav" src="${ph}" alt="">`:''};
   const tiles=us
@@ -551,29 +576,65 @@ function vStats(){
     <div class="phchips" role="group" aria-label="Phase de jeu">${PH_LIVE.map(([k,l])=>`<button class="chip" data-act="phase" data-v="${k}" aria-pressed="${u.phase===k}" ${loss&&k==='seven'?'disabled':''}>${l}</button>`).join('')}</div>
   </section>
   <section class="card lv-players"><div class="card-head"><h2><span class="step">2</span>${us?'Joueur':'Notre gardien'}</h2><span class="hint">${us?'Facultatif':'Face au tir'}</span></div>${tiles}</section>
-  <section class="card lv-where"><div class="card-head"><h2><span class="step">3</span>Secteur et espace</h2><span class="hint">Facultatif</span></div>
-    <div class="lv-wgrid">
-      <div class="lv-svg ${loss?'off':''}">${courtSVG({act:loss?'':'court',id:'zpick',extra:labels+mk,label:'Choix du secteur de tir'})}</div>
-      <div class="lv-wside">
-        <div class="espchips" role="group" aria-label="Espace de tir, de gauche à droite vu du tireur"><span class="lab">Espace</span>${ESP.map(k=>`<button class="chip" data-act="esp" data-v="${k}" aria-pressed="${u.esp===k}" ${seven||loss?'disabled':''}>${k}</button>`).join('')}</div>
-        <div class="lv-goalrec">
-          <div class="f"><span class="lab">Dans le but · vue du tireur</span>${goalPicker(u.cage,noGoal)}</div>
-          <div class="lv-rec">
-            <div class="sel">${recap.length?esc(recap.join(' · ')):'<span class="ph">Choisis l’action, puis le joueur et l’endroit</span>'}</div>
-            <div class="row"><button class="btn primary rec" data-act="record" ${u.act?'':'disabled'}>Enregistrer</button>${recap.length||u.phase!=='placed'?'<button class="btn ghost sm" data-act="clearSel">Effacer</button>':''}</div>
-          </div>
-        </div>
-      </div>
+  <section class="card lv-where"><div class="card-head"><h2><span class="step">3</span>Espace</h2><span class="hint">Facultatif · vu du tireur</span></div>
+    <div class="espline ${seven||loss?'off':''}" role="group" aria-label="Espace de tir entre les défenseurs, vu du tireur">${ESP.map((k,i)=>`<button data-act="esp" data-v="${k}" aria-pressed="${u.esp===k}" ${seven||loss?'disabled':''}>${k}</button>${i<6?`<i aria-hidden="true">${i+1}</i>`:''}`).join('')}</div>
+    <div class="esp6m"><span>défenseurs 1 à 6 · zone des 6 m</span></div>
+    <div class="lv-rec">
+      <div class="sel">${recap.length?esc(recap.join(' · ')):'<span class="ph">Choisis l’action, puis le joueur et l’espace</span>'}</div>
+      <div class="row"><button class="btn primary rec" data-act="record" ${u.act?'':'disabled'}>Enregistrer</button>${recap.length||u.phase!=='placed'?'<button class="btn ghost sm" data-act="clearSel">Effacer</button>':''}</div>
     </div>
   </section>
-  <section class="card lv-feed"><div class="card-head"><h2>Dernières actions</h2><button class="btn ghost sm" data-act="undo" ${m.events.length?'':'disabled'}>Annuler la dernière</button></div>
+  <section class="card lv-feed"><div class="card-head"><h2>Dernières actions</h2><button class="btn ghost sm" data-act="undo" ${stv.length?'':'disabled'}>Annuler la dernière</button></div>
     <ul class="feed">${feed.map(e=>`<li><i class="dot ${e.team}"></i><span>${esc(evText(e))}</span><small>${e.half===1?'1re':'2e'}</small><button class="icon-btn" data-act="delEv" data-id="${e.id}" aria-label="Supprimer">×</button></li>`).join('')||'<li><span class="muted">Aucune action relevée.</span></li>'}</ul>
   </section>
   </div>`;
 }
 
+function bigGoal(sel,view,off){
+  // 6 parties du but + 3 tirs particuliers ; la donnée est toujours rangée vue du tireur
+  const b=(k,cls)=>{const st=view==='gk'?mirrorZ(k):k;return `<button class="${cls||''}" data-act="gkCage" data-v="${st}" aria-pressed="${sel===st}" aria-label="${GZL[k]}" ${off?'disabled':''}>${k==='CONT'?'Contour&shy;nement':GZL[k]}</button>`};
+  return `<div class="bgoal ${off?'off':''}" role="group" aria-label="Impact dans la cage, ${view==='gk'?'vue du gardien':'vue du tireur'}">
+    <div class="bg-frame">${GZ6.map(r=>r.map(k=>b(k)).join('')).join('')}</div>
+    <div class="bg-line"></div>
+    <div class="bg-sp">${GZX.map(k=>b(k,'sp')).join('')}</div></div>`;
+}
+function vGkIn(){
+  const m=S.m,u=S.ui,opp=u.gkTeam==='opp';
+  if(!u.gk||!pById(u.gk))u.gk=defaultGK();
+  const L=evs(m,u.half).filter(isGkEv).filter(e=>e.team===u.gkTeam),on=L.filter(isOn),sv=on.filter(e=>e.res==='saved').length;
+  const mine=opp&&u.gk?on.filter(e=>e.gk===u.gk):on,msv=mine.filter(e=>e.res==='saved').length;
+  const labels=ZONES.filter(z=>z[0]!=='7M').map(z=>`<text class="zl ${u.gkZone===z[0]?'on':''}" x="${z[2]}" y="${z[3]}">${z[0]}</text>`).join('');
+  const mk=u.gkXy?`<circle class="mk" cx="${u.gkXy.x}" cy="${u.gkXy.y}" r=".6"/>`:'';
+  const s1=u.gkSeven||!!u.gkXy,s2=!!u.gkCage;
+  const recap=[u.gkSeven?'Jet de 7 m':(u.gkZone?ZL[u.gkZone]:null),u.gkCage?GZL[u.gkCage].toLowerCase()+' (vue du tireur)':null].filter(Boolean);
+  const feed=m.events.filter(isGkEv).slice(-4).reverse();
+  const av=id=>{const ph=photoOf(id);return ph?`<img class="pav" src="${ph}" alt="">`:''};
+  const gkPick=opp?(gks().length?`<div class="gk-pick">${gks().map(p=>`<button class="ptile gk" data-act="selGk" data-id="${p.id}" aria-pressed="${u.gk===p.id}"><b>${av(p.id)}${esc(ptag(p))}</b><span>${esc(p.name)}</span></button>`).join('')}</div>`:'<span class="hint">Aucun gardien sélectionné pour ce match (onglet Compo).</span>'):`<span class="gk-opp">Gardien adverse${m.scout.gkNum?' n°'+esc(m.scout.gkNum):''}</span>`;
+  const R=opp?[['saved','Arrêt','good'],['goal','But','bad']]:[['goal','But','good'],['saved','Arrêt','bad']];
+  return `${banner()}<div class="gki ${opp?'is-opp':''}">
+  <section class="card gki-top">
+    <div class="seg big" role="group" aria-label="Tirs relevés"><button class="opp" data-act="gkTeam" data-v="opp" aria-pressed="${opp}">Tirs adverses</button><button data-act="gkTeam" data-v="us" aria-pressed="${!opp}">Nos tirs</button></div>
+    ${gkPick}
+    <div class="gki-tally"><b>${pct(opp&&u.gk?msv:sv,opp&&u.gk?mine.length:on.length)}</b><span>${opp?(u.gk?'arrêts de '+esc(pLab(u.gk,true)):'arrêts'):'arrêts du GB adverse'}<br>${HALFL[u.half]} · ${opp&&u.gk?msv:sv}/${opp&&u.gk?mine.length:on.length} cadrés</span></div>
+  </section>
+  <section class="card gki-court"><div class="card-head"><h2><span class="step ${s1?'done':''}">${s1?'✓':'1'}</span>D’où part le tir ?</h2><button class="chip" data-act="gkSeven" aria-pressed="${u.gkSeven}">Jet de 7 m</button></div>
+    <div class="lv-svg ${u.gkSeven?'off':''}">${courtSVG({act:'gcourt',id:'gkcourt',extra:labels+mk,label:'Endroit du tir sur le terrain'})}</div>
+  </section>
+  <section class="card gki-goal"><div class="card-head"><h2><span class="step ${s2?'done':''}">${s2?'✓':'2'}</span>Où dans la cage ?</h2>
+      <div class="seg sm" role="group" aria-label="Sens de lecture du but">${[['shooter','Vue du tireur'],['gk','Vue du gardien']].map(([v,l])=>`<button data-act="gkView" data-v="${v}" aria-pressed="${u.gkView===v}">${l}</button>`).join('')}</div></div>
+    ${bigGoal(u.gkCage,u.gkView,false)}
+  </section>
+  <section class="card gki-res"><div class="card-head"><h2><span class="step">3</span>Résultat</h2>${recap.length?'<button class="btn ghost sm" data-act="gkClear">Effacer</button>':''}</div>
+    <div class="sel">${recap.length?esc(recap.join(' · ')):'<span class="ph">Touche le terrain, puis la cage, puis le résultat</span>'}</div>
+    <div class="gki-big">${R.map(([k,l,c])=>`<button class="gres ${c}" data-act="gkRes" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="gki-small"><button class="btn" data-act="gkRes" data-v="post">Poteau</button><button class="btn" data-act="gkRes" data-v="miss">Hors cadre</button></div>
+    <div class="gki-feed"><div class="card-head"><span class="lab">Derniers tirs</span><button class="btn ghost sm" data-act="undo" ${feed.length?'':'disabled'}>Annuler le dernier</button></div>
+      <ul class="feed">${feed.map(e=>`<li><i class="dot ${e.team}"></i><span>${esc(evText(e))}</span><button class="icon-btn" data-act="delEv" data-id="${e.id}" aria-label="Supprimer">×</button></li>`).join('')||'<li><span class="muted">Aucun tir relevé ici.</span></li>'}</ul></div>
+  </section>
+  </div>`;
+}
 function vGK(){
-  const m=S.m,u=S.ui,side=u.gkSide,L=evs(m,u.gkPer);
+  const m=S.m,u=S.ui,side=u.gkSide,L=gkEv(evs(m,u.gkPer));
   const shooter=side==='us'?'opp':'us';
   let shots=shotsOf(L,shooter);if(side==='us'&&u.gkSel)shots=shots.filter(e=>e.gk===u.gkSel);
   const on=shots.filter(e=>e.res==='goal'||e.res==='saved'),sv=on.filter(e=>e.res==='saved').length;
@@ -581,11 +642,11 @@ function vGK(){
   const cell=k=>{const c=on.filter(e=>cz(e)===k),s=c.filter(e=>e.res==='saved').length,t=c.length;
     const bg=t?`background:color-mix(in srgb,color-mix(in srgb,var(--good) ${Math.round(100*s/t)}%,var(--bad)) 32%,var(--surface))`:'';
     return `<div style="${bg}"><small>${GZL[k]}</small><b>${t?pct(s,t):'–'}</b><span>${t?`${s} arr. / ${t}`:'aucun tir'}</span></div>`};
-  const cells=`<div class="heat">${['HG','HD','BG','BD'].map(cell).join('')}</div><div class="heat-sp">${['LOB','CONT','SOUS'].map(cell).join('')}</div>`;
+  const cells=`<div class="heat">${GZ6.flat().map(cell).join('')}</div><div class="heat-sp">${GZX.map(cell).join('')}</div>`;
   const noCage=on.filter(e=>!cz(e)).length;
   const zr=ZONES.map(z=>{const a=on.filter(e=>e.zone===z[0]);if(!a.length)return null;const s=a.filter(e=>e.res==='saved').length;return[z[1],a.length,s,a.length-s,pct(s,a.length)]}).filter(Boolean);
   const who=side==='us'?(u.gkSel?pLab(u.gkSel):'Tous nos gardiens'):('Gardien adverse'+(m.scout.gkNum?' n°'+esc(m.scout.gkNum):''));
-  return `${banner()}<div class="pane-head"><div><h1>Stats gardien</h1><p class="hint">Calculé sur les tirs cadrés (buts et arrêts) relevés dans Stats. Cage vue du tireur.</p></div>
+  return `${banner()}<div class="pane-head"><div><h1>Bilan gardiens</h1><p class="hint">Calculé sur les tirs cadrés (buts et arrêts) de l’onglet Gardiens. Cage vue du tireur.</p></div>
     <div class="seg" role="group">${[['us','Nos gardiens'],['opp','Gardien adverse']].map(([v,l])=>`<button ${v==='opp'?'class="opp" ':''}data-act="gkSide" data-v="${v}" aria-pressed="${side===v}">${l}</button>`).join('')}</div></div>
   <div class="row">${perChips('gkPer',u.gkPer,true)}${side==='us'?`<div class="chips"><button class="chip" data-act="gkSel" data-v="" aria-pressed="${!u.gkSel}">Tous</button>${gks().map(p=>`<button class="chip" data-act="gkSel" data-v="${p.id}" aria-pressed="${u.gkSel===p.id}">${esc(pLab(p.id))}</button>`).join('')}</div>`:''}</div>
   <div class="grid2 fx gkg">
@@ -673,20 +734,20 @@ function zoneMap(shots,team){
   return courtSVG({extra:marks,label:team==='us'?'Pourcentage de réussite de nos tirs par zone':'Pourcentage de réussite des tirs adverses par zone'});
 }
 function vBilan(){
-  const m=S.m,u=S.ui,L=evs(m,u.bilPer);
-  const us=shotsOf(L,'us'),op=shotsOf(L,'opp'),gU=gkStat(L,'us'),gO=gkStat(L,'opp');
-  const ins=insights(m,L);
+  const m=S.m,u=S.ui,L0=evs(m,u.bilPer),L=stEv(L0),LG=gkEv(L0);
+  const us=shotsOf(L,'us'),op=shotsOf(L,'opp'),gU=gkStat(L0,'us'),gO=gkStat(L0,'opp');
+  const ins=insights(m,L0);
   const phRows=PH.map(([k,l])=>{const a=us.filter(e=>e.phase===k),b=op.filter(e=>e.phase===k);if(!a.length&&!b.length)return null;return[l,`${goals(a)}/${a.length}`,pct(goals(a),a.length),`${goals(b)}/${b.length}`,pct(goals(b),b.length)]}).filter(Boolean);
   const keys=(m.scout.keys||'').split('\n').map(s=>s.trim()).filter(Boolean);
   const per=u.bilPer?HALFL[u.bilPer]:'Match complet';
   const isGk=p=>p.pos==='GB';
   const scorers=m.players.filter(p=>!isGk(p)||us.some(e=>e.p===p.id)).map(p=>{const a=us.filter(e=>e.p===p.id),s7=a.filter(e=>e.phase==='seven'||e.zone==='7M');return{p,t:a.length,g:goals(a),t7:s7.length,g7:goals(s7),lo:L.filter(e=>e.team==='us'&&e.type==='loss'&&e.p===p.id).length}}).sort((a,b)=>b.g-a.g||b.t-a.t||numSort(a.p,b.p));
   const noP=us.filter(e=>!e.p).length,noPl=L.filter(e=>e.team==='us'&&e.type==='loss'&&!e.p).length;
-  const gkRows=gks().map(p=>{const g=gkStat(L,'us',p.id);return g.t?[`n°${esc(p.num||'?')}`,esc(p.name),`<strong>${g.s}</strong>`,g.t,pct(g.s,g.t),g.t-g.s]:null}).filter(Boolean);
-  const nz=a=>{const n=a.filter(e=>!e.zone).length;return n?`<p class="hint">${n} tir${n>1?'s':''} sans endroit noté.</p>`:''};
+  const gkRows=gks().map(p=>{const g=gkStat(L0,'us',p.id);return g.t?[`n°${esc(p.num||'?')}`,esc(p.name),`<strong>${g.s}</strong>`,g.t,pct(g.s,g.t),g.t-g.s]:null}).filter(Boolean);
+  const nz=a=>{const t=a[0]&&a[0].team,n=byEsp?a.filter(e=>!espOf(e)).length:shotsOf(LG,t).filter(e=>!e.zone).length;return n?`<p class="hint">${n} tir${n>1?'s':''} sans endroit noté.</p>`:''};
   const byEsp=u.bilBy==='esp';
-  const map=(a,team)=>byEsp?espMap(a,team):zoneMap(a,team);
-  return `${banner()}<div class="pane-head"><div><h1>Bilan express</h1><p class="hint">${per} · ${L.length} action${L.length>1?'s':''} relevée${L.length>1?'s':''}. À montrer à la mi-temps ou pendant un temps mort.</p></div>
+  const map=(a,team)=>byEsp?espMap(a,team):zoneMap(shotsOf(LG,team),team);
+  return `${banner()}<div class="pane-head"><div><h1>Bilan express</h1><p class="hint">${per} · ${L0.length} action${L0.length>1?'s':''} relevée${L0.length>1?'s':''}. À montrer à la mi-temps ou pendant un temps mort.</p></div>
     <div class="row"><div class="seg" role="group" aria-label="Provenance des tirs">${[['zone','Par zone'],['esp','Par espace']].map(([v,l])=>`<button data-act="bilBy" data-v="${v}" aria-pressed="${(u.bilBy||'zone')===v}">${l}</button>`).join('')}</div>${perChips('bilPer',u.bilPer,true)}</div></div>
   <div class="bil2">
     <div class="kpis bk full">
@@ -724,23 +785,22 @@ function goalSVG(cells,side,view){
     const good=Math.round(100*(side==='opp'?c.s/c.t:c.g/c.t)),sat=Math.round(32+58*c.t/maxT),tone=sat>=60?'hi':'lo';
     const sub=side==='opp'?`${plural(c.s,'arrêt')} · ${plural(c.g,'but')}`:`${plural(c.g,'but')} · ${plural(c.s,'arrêt')}`;
     return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".05" style="fill:color-mix(in srgb,color-mix(in srgb,var(--good) ${good}%,var(--bad)) ${sat}%,var(--surface))"/>
-      <text class="cl ${tone}" x="${cx}" y="${y+(big?.16:.13)}">${lab}</text><text class="cn ${big?'':'sm'} ${tone}" x="${cx}" y="${cy+(big?.1:.1)}">${c.t}</text><text class="cs ${tone}" x="${cx}" y="${y+h-(big?.1:.06)}">${sub}</text>`;
+      <text class="cl ${tone}" x="${cx}" y="${y+.14}">${lab}</text><text class="cn sm ${tone}" x="${cx}" y="${cy+.08}">${c.t}</text><text class="cs ${tone}" x="${cx}" y="${y+h-.06}">${sub}</text>`;
   };
   // 4 quarts du but ; vue du gardien = gauche et droite inversées
-  const at=view==='gk'?{HD:[0,0],HG:[1,0],BD:[0,1],BG:[1,1]}:{HG:[0,0],HD:[1,0],BG:[0,1],BD:[1,1]};
   let out='<rect class="net" x="0" y="0" width="3" height="2"/>';
-  ['HG','HD','BG','BD'].forEach(k=>{const [c,r]=at[k];out+=box(k,c*1.5+.03,r+.03,1.44,.94,true)});
+  GZ6.forEach((row,r)=>row.forEach((k,c)=>{const cc=view==='gk'?1-c:c;out+=box(k,cc*1.5+.03,r*2/3+.03,1.44,2/3-.06,true)}));
   const P=.08;let posts='';
   for(let x=-P,k=0;x<W+P-1e-6;x+=.2,k++)posts+=`<rect class="${k%2?'post-b':'post-a'}" x="${x.toFixed(3)}" y="${-P}" width="${Math.min(.2,W+P-x).toFixed(3)}" height="${P}"/>`;
   for(let y=0,k=1;y<H-1e-6;y+=.2,k++){const hh=Math.min(.2,H-y).toFixed(3);posts+=`<rect class="${k%2?'post-b':'post-a'}" x="${-P}" y="${y.toFixed(3)}" width="${P}" height="${hh}"/><rect class="${k%2?'post-b':'post-a'}" x="${W}" y="${y.toFixed(3)}" width="${P}" height="${hh}"/>`}
   posts+=`<path class="post-frame" d="M${-P} ${H} V${-P} H${W+P} V${H} M0 ${H} V0 H${W} V${H}"/>`;
   const L=view==='gk'?'côté AIL-D':'côté AIL-G',R=view==='gk'?'côté AIL-G':'côté AIL-D';
-  const sp=['LOB','CONT','SOUS'].map((k,i)=>box(k,i*1.02,2.3,.96,.58,false)).join('');
+  const sp=GZX.map((k,i)=>box(k,i*1.02,2.3,.96,.58,false)).join('');
   return `<svg class="goalsvg" viewBox="-0.2 -0.2 3.4 3.18" role="img" aria-label="Tirs dans le but, ${view==='gk'?'vue du gardien':'vue du tireur'}">${out}${posts}
     <path class="gline" d="M-0.2 2 H3.2"/><text class="gside" x="0" y="2.17">◀ ${L}</text><text class="gside" x="3" y="2.17" text-anchor="end">${R} ▶</text>${sp}</svg>`;
 }
 function vCage(){
-  const m=S.m,u=S.ui,side=u.czSide,view=u.czView,L=evs(m,u.czPer),byEsp=u.czBy==='esp';
+  const m=S.m,u=S.ui,side=u.czSide,view=u.czView,L=gkEv(evs(m,u.czPer)),hasEsp=L.some(e=>espOf(e)),byEsp=u.czBy==='esp'&&hasEsp;
   let shots=shotsOf(L,side);
   if(side==='opp'&&u.czGk)shots=shots.filter(e=>e.gk===u.czGk);
   const keyOf=e=>byEsp?espOf(e):e.zone;
@@ -794,7 +854,7 @@ function vCage(){
     ${side==='opp'&&gks().length>1?`<div class="chips"><button class="chip" data-act="czGk" data-v="" aria-pressed="${!u.czGk}">Tous nos GB</button>${gks().map(p=>`<button class="chip" data-act="czGk" data-v="${p.id}" aria-pressed="${u.czGk===p.id}">${esc(pLab(p.id))}</button>`).join('')}</div>`:''}
   </div>
   <div class="cz3 fx">
-    <div class="card cz-court"><div class="card-head"><div class="seg" role="group" aria-label="Provenance">${[['zone','Par zone'],['esp','Par espace']].map(([v,l])=>`<button data-act="czBy" data-v="${v}" aria-pressed="${(u.czBy||'zone')===v}">${l}</button>`).join('')}</div><button class="chip" data-act="${act}" data-v="" aria-pressed="${!cur}">Tout</button></div>
+    <div class="card cz-court"><div class="card-head">${hasEsp?`<div class="seg" role="group" aria-label="Provenance">${[['zone','Par zone'],['esp','Par espace']].map(([v,l])=>`<button data-act="czBy" data-v="${v}" aria-pressed="${byEsp===(v==='esp')}">${l}</button>`).join('')}</div>`:'<h2>D’où viennent les tirs</h2>'}<button class="chip" data-act="${act}" data-v="" aria-pressed="${!cur}">Tout</button></div>
       <div class="cz-svg">${courtSVG({extra:bubbles,label:'Choix de la provenance des tirs'})}</div>
       <p class="hint">${byEsp?'Espaces choisis à la saisie, de gauche à droite vu du tireur. ':''}Le chiffre indique le nombre de tirs.</p>
     </div>
@@ -811,12 +871,12 @@ function vCage(){
 }
 
 function vReport(){
-  const m=S.m,u=S.ui,L=evs(m,u.repPer);
-  const halfRow=h=>{const E=evs(m,h),a=shotsOf(E,'us'),b=shotsOf(E,'opp'),g=gkStat(E,'us');return[h?HALFL[h]:'<strong>Match</strong>',goals(a),goals(b),pct(goals(a),a.length),pct(goals(b),b.length),cnt(E,'us','loss'),cnt(E,'opp','loss'),pct(g.s,g.t)]};
+  const m=S.m,u=S.ui,L0=evs(m,u.repPer),L=stEv(L0),LG=gkEv(L0);
+  const halfRow=h=>{const E0=evs(m,h),E=stEv(E0),a=shotsOf(E,'us'),b=shotsOf(E,'opp'),g=gkStat(E0,'us');return[h?HALFL[h]:'<strong>Match</strong>',goals(a),goals(b),pct(goals(a),a.length),pct(goals(b),b.length),cnt(E,'us','loss'),cnt(E,'opp','loss'),pct(g.s,g.t)]};
   const pr=playerRows(m,L).filter(r=>r.t||r.loss).map(r=>[esc(r.p.num),esc(r.p.name),esc(r.p.pos),r.t,`<strong>${r.g}</strong>`,pct(r.g,r.t),r.t7?`${r.g7}/${r.t7}`:'–',r.loss]);
-  const gr=gks().map(p=>{const a=gkStat(L,'us',p.id),h1=gkStat(evs(m,1),'us',p.id),h2=gkStat(evs(m,2),'us',p.id);if(!a.t)return null;return[esc(p.num),esc(p.name),a.t,a.s,a.g,`<strong>${pct(a.s,a.t)}</strong>`,pct(h1.s,h1.t),pct(h2.s,h2.t)]}).filter(Boolean);
-  const us=shotsOf(L,'us'),op=shotsOf(L,'opp');
-  const zr=ZONES.map(z=>{const a=us.filter(e=>e.zone===z[0]),b=op.filter(e=>e.zone===z[0]);if(!a.length&&!b.length)return null;return[z[1],`${goals(a)}/${a.length}`,pct(goals(a),a.length),`${goals(b)}/${b.length}`,pct(goals(b),b.length)]}).filter(Boolean);
+  const gr=gks().map(p=>{const a=gkStat(L0,'us',p.id),h1=gkStat(evs(m,1),'us',p.id),h2=gkStat(evs(m,2),'us',p.id);if(!a.t)return null;return[esc(p.num),esc(p.name),a.t,a.s,a.g,`<strong>${pct(a.s,a.t)}</strong>`,pct(h1.s,h1.t),pct(h2.s,h2.t)]}).filter(Boolean);
+  const us=shotsOf(L,'us'),op=shotsOf(L,'opp'),usg=shotsOf(LG,'us'),opg=shotsOf(LG,'opp');
+  const zr=ZONES.map(z=>{const a=usg.filter(e=>e.zone===z[0]),b=opg.filter(e=>e.zone===z[0]);if(!a.length&&!b.length)return null;return[z[1],`${goals(a)}/${a.length}`,pct(goals(a),a.length),`${goals(b)}/${b.length}`,pct(goals(b),b.length)]}).filter(Boolean);
   const phr=PH.map(([k,,l])=>{const a=us.filter(e=>e.phase===k),b=op.filter(e=>e.phase===k);if(!a.length&&!b.length)return null;return[l,`${goals(a)}/${a.length}`,pct(goals(a),a.length),`${goals(b)}/${b.length}`,pct(goals(b),b.length)]}).filter(Boolean);
   const dr=DEFS.map(d=>{const a=us.filter(e=>e.def===d),lo=L.filter(e=>e.team==='us'&&e.type==='loss'&&e.def===d).length;if(!a.length&&!lo)return null;return[esc(d),a.length,goals(a),pct(goals(a),a.length),lo]}).filter(Boolean);
   const er=espRowsTbl(us,op);
@@ -831,8 +891,8 @@ function vReport(){
   ${pr.length?`<div class="card"><h2>Joueurs</h2>${tbl(['N°','Nom','Poste','Tirs','Buts','Eff.','7 m','Pertes'],pr,[0,1,2])}</div>`:''}
   <div class="card"><h2>Nos gardiens</h2>${tbl(['N°','Nom','Tirs cadrés','Arrêts','Buts','% arrêts','1re','2e'],gr,[0,1])}</div>
   <div class="split">
-    <div class="card"><h2>Nos tirs</h2>${courtSVG({extra:dotsSVG(us,'us'),label:'Carte de nos tirs'})}${legend('us')}${noXY(us.filter(e=>e.x==null).length)}</div>
-    <div class="card"><h2>Tirs adverses</h2>${courtSVG({extra:dotsSVG(op,'opp'),label:'Carte des tirs adverses'})}${legend('opp')}${noXY(op.filter(e=>e.x==null).length)}</div>
+    <div class="card"><h2>Nos tirs</h2>${courtSVG({extra:dotsSVG(usg,'us'),label:'Carte de nos tirs'})}${legend('us')}${noXY(usg.filter(e=>e.x==null).length)}</div>
+    <div class="card"><h2>Tirs adverses</h2>${courtSVG({extra:dotsSVG(opg,'opp'),label:'Carte des tirs adverses'})}${legend('opp')}${noXY(opg.filter(e=>e.x==null).length)}</div>
   </div>
   <div class="split">
     <div class="card"><h2>Par zone de tir</h2>${tbl(['Zone','Nous','Eff.','Adversaire','Eff.'],zr)}</div>
@@ -916,7 +976,7 @@ function playerSeason(pid,ms){
     const inM=m.players.some(p=>p.id===pid);
     const sh=m.events.filter(e=>e.team==='us'&&e.type==='shot'&&e.p===pid);
     const lo=m.events.filter(e=>e.team==='us'&&e.type==='loss'&&e.p===pid).length;
-    const fc=m.events.filter(e=>e.team==='opp'&&e.type==='shot'&&e.gk===pid);
+    const fc=gkEv(m.events).filter(e=>e.team==='opp'&&e.type==='shot'&&e.gk===pid);
     if(!inM&&!sh.length&&!lo&&!fc.length)return;
     R.mj++;R.shots.push(...sh);R.loss+=lo;R.faced.push(...fc);R.rows.push({m,sh,lo,fc});
   });
@@ -1017,14 +1077,14 @@ function vProfile(){
   </div>`;
 }
 function vSeason(){
-  const ms=teamMatches(),all=ms.flatMap(m=>m.events),us=all.filter(e=>e.team==='us'&&e.type==='shot'),op=all.filter(e=>e.team==='opp'&&e.type==='shot');
-  const opOn=op.filter(isOn),sv=opOn.filter(e=>e.res==='saved').length,lo=all.filter(e=>e.team==='us'&&e.type==='loss').length;
+  const ms=teamMatches(),all=ms.flatMap(m=>stEv(m.events)),us=all.filter(e=>e.team==='us'&&e.type==='shot'),op=all.filter(e=>e.team==='opp'&&e.type==='shot');
+  const opOn=ms.flatMap(m=>gkEv(m.events)).filter(e=>e.team==='opp'&&e.type==='shot').filter(isOn),sv=opOn.filter(e=>e.res==='saved').length,lo=all.filter(e=>e.team==='us'&&e.type==='loss').length;
   const ps=TEAM.players.slice().sort(teamSort),lnk=p=>`<button class="lnk" data-act="tp" data-id="${p.id}">${esc(tFull(p))}</button>`;
   const fr=ps.map(p=>({p,st:playerSeason(p.id,ms)})).filter(x=>x.st.mj&&(x.p.poste!=='GB'||x.st.shots.length)).sort((a,b)=>goals(b.st.shots)-goals(a.st.shots))
     .map(({p,st})=>{const g=goals(st.shots),s7=st.shots.filter(e=>e.phase==='seven'||e.zone==='7M');return[esc(p.num),lnk(p),st.mj,`<strong>${g}</strong>`,st.shots.length,pct(g,st.shots.length),s7.length?`${goals(s7)}/${s7.length}`:'–',st.loss]});
   const gr=ps.map(p=>({p,st:playerSeason(p.id,ms)})).filter(x=>x.st.mj&&(x.p.poste==='GB'||x.st.faced.length))
     .map(({p,st})=>{const o=st.faced.filter(isOn),s=o.filter(e=>e.res==='saved').length;return[esc(p.num),lnk(p),st.mj,o.length,`<strong>${s}</strong>`,pct(s,o.length),st.loss]});
-  const mr=ms.map(m=>{const sc=scoreOf(m),a=shotsOf(m.events,'us'),g=gkStat(m.events,'us');return[esc(fmtDate(m.date)),esc(m.opponent||'–'),`<strong>${sc.us}–${sc.op}</strong>`,pct(goals(a),a.length),pct(g.s,g.t),cnt(m.events,'us','loss')]});
+  const mr=ms.map(m=>{const sc=scoreOf(m),a=shotsOf(stEv(m.events),'us'),g=gkStat(m.events,'us');return[esc(fmtDate(m.date)),esc(m.opponent||'–'),`<strong>${sc.us}–${sc.op}</strong>`,pct(goals(a),a.length),pct(g.s,g.t),cnt(m.events,'us','loss')]});
   return `${teamBanner()}<div class="pane-head"><div><h1>Saison</h1><p class="hint">Cumul de ${plural(ms.length,'match')} enregistré${ms.length>1?'s':''}. Les stats individuelles ne comptent que les actions attribuées à un joueur.</p></div></div>
   <div class="kpis">${kpi('Matchs',ms.length,'')}${kpi('Buts relevés',`<span class="us">${goals(us)}</span><em>–</em><span class="op">${goals(op)}</span>`,'marqués – encaissés')}${kpi('Efficacité au tir',pct(goals(us),us.length),`${goals(us)} buts sur ${us.length} tirs`)}${kpi('% arrêts',pct(sv,opOn.length),`${sv} sur ${opOn.length} tirs cadrés`)}${kpi('Pertes par match',ms.length?(lo/ms.length).toFixed(1).replace('.',','):'–',`${lo} au total`)}</div>
   <div class="card"><h2>Joueurs de champ</h2>${tbl(['N°','Joueur','Matchs','Buts','Tirs','%','7 m','Pertes'],fr,[0,1])}</div>
@@ -1276,18 +1336,17 @@ function buildMatchPdf(JS,m){
       if(!c){fill(PCOL.soft);doc.rect(bx,by,bw,bh,'F');F('normal',big?7:6,PCOL.muted);T(lab,bx+bw/2,by+bh/2+1,{align:'center'});return}
       const ratio=side==='opp'?c.s/c.t:c.g/c.t,k2=.35+.6*c.t/maxT,dark=k2>.62,ink=dark?PCOL.white:PCOL.ink;
       fill(cmix(cmix(PCOL.good,PCOL.bad,ratio),PCOL.white,k2));doc.rect(bx,by,bw,bh,'F');
-      F('normal',big?6:5.4,ink);T(lab,bx+bw/2,by+(big?3.2:2.6),{align:'center'});
-      F('bold',big?12:9,ink);T(String(c.t),bx+bw/2,by+bh/2+(big?2.4:1.6),{align:'center'});
-      F('normal',big?6:5.2,ink);T(side==='opp'?`${c.s} arr. · ${c.g} but${c.g>1?'s':''}`:`${c.g} but${c.g>1?'s':''} · ${c.s} arr.`,bx+bw/2,by+bh-(big?2:1.3),{align:'center'});
+      F('normal',big?5.6:5.4,ink);T(lab,bx+bw/2,by+(big?2.7:2.6),{align:'center'});
+      F('bold',big?10:9,ink);T(String(c.t),bx+bw/2,by+bh/2+(big?1.9:1.6),{align:'center'});
+      F('normal',big?5.4:5.2,ink);T(side==='opp'?`${c.s} arr. · ${c.g} but${c.g>1?'s':''}`:`${c.g} but${c.g>1?'s':''} · ${c.s} arr.`,bx+bw/2,by+bh-(big?1.1:1.3),{align:'center'});
     };
-    const at=view==='gk'?{HD:[0,0],HG:[1,0],BD:[0,1],BG:[1,1]}:{HG:[0,0],HD:[1,0],BG:[0,1],BD:[1,1]};
-    ['HG','HD','BG','BD'].forEach(k=>{const [c,r]=at[k];box(k,x+c*w/2+.4,yy+r*h/2+.4,w/2-.8,h/2-.8,true)});
+    GZ6.forEach((row,r)=>row.forEach((k,c)=>box(k,x+(view==='gk'?1-c:c)*w/2+.4,yy+r*h/3+.4,w/2-.8,h/3-.8,true)));
     const sy=yy+h+2.2,sw=(w-2)/3;
-    ['LOB','CONT','SOUS'].forEach((k,i)=>box(k,x+i*(sw+1),sy,sw,11,false));
+    GZX.forEach((k,i)=>box(k,x+i*(sw+1),sy,sw,11,false));
     F('normal',6.5,PCOL.muted);T(view==='gk'?'Vue du gardien':'Vue du tireur',x+w/2,sy+11+3.6,{align:'center'});
     return h+2.2+11+5;
   }
-  const L=m.events,us=shotsOf(L,'us'),op=shotsOf(L,'opp'),gU=gkStat(L,'us'),gO=gkStat(L,'opp'),sc=scoreOf(m);
+  const L0=m.events,L=stEv(L0),LG=gkEv(L0),us=shotsOf(L,'us'),op=shotsOf(L,'opp'),usg=shotsOf(LG,'us'),opg=shotsOf(LG,'opp'),gU=gkStat(L0,'us'),gO=gkStat(L0,'opp'),sc=scoreOf(m);
   // ----- en-tête -----
   fill(PCOL.deep);doc.rect(0,0,W,36,'F');fill(PCOL.gold);doc.rect(0,36,W,1.4,'F');
   {const x=M,yy=6,sz=24;fill(PCOL.gold);doc.roundedRect(x,yy,sz,sz,4.5,4.5,'F');fill(PCOL.navy);doc.roundedRect(x,yy,sz,sz-3.2,4.5,4.5,'F');doc.rect(x,yy+sz-8,sz,4.8,'F');
@@ -1298,33 +1357,33 @@ function buildMatchPdf(JS,m){
   F('bold',26,PCOL.white);T(`${sc.us} – ${sc.op}`,W-M,21,{align:'right'});F('normal',7,PCOL.light);T('BUTS RELEVÉS · MEHB – ADVERSAIRE',W-M,27,{align:'right'});
   y=44;
   // ----- résumé -----
-  section('Résumé du match',`${plural(L.length,'action')} relevée${L.length>1?'s':''}`);
+  section('Résumé du match',`${plural(L0.length,'action')} relevée${L0.length>1?'s':''}`);
   const kp=[['Buts',`${goals(us)} – ${goals(op)}`,'MEHB – adversaire'],['Efficacité au tir',`${pct(goals(us),us.length)} / ${pct(goals(op),op.length)}`,`MEHB ${goals(us)}/${us.length} · adv. ${goals(op)}/${op.length}`],['Pertes de balle',`${cnt(L,'us','loss')} / ${cnt(L,'opp','loss')}`,'MEHB / adversaire'],['% arrêts',`${pct(gU.s,gU.t)} / ${pct(gO.s,gO.t)}`,`nos GB ${gU.s}/${gU.t} · leur GB ${gO.s}/${gO.t}`]];
   const kw=(CW-6)/4;
   kp.forEach((k,i)=>{const x=M+i*(kw+2);fill(PCOL.soft);doc.roundedRect(x,y,kw,19,2,2,'F');F('bold',6.6,PCOL.muted);T(k[0].toUpperCase(),x+3,y+5);F('bold',13,PCOL.navy);T(k[1],x+3,y+12);F('normal',6.4,PCOL.muted);T(k[2],x+3,y+16.5)});
   y+=23;
-  const halfRow=h=>{const E=evs(m,h),a=shotsOf(E,'us'),b=shotsOf(E,'opp'),g=gkStat(E,'us'),g2=gkStat(E,'opp');return[h?HALFL[h]:{b:'Match complet'},`${goals(a)} – ${goals(b)}`,pct(goals(a),a.length),pct(goals(b),b.length),cnt(E,'us','loss'),cnt(E,'opp','loss'),pct(g.s,g.t),pct(g2.s,g2.t)]};
+  const halfRow=h=>{const E0=evs(m,h),E=stEv(E0),a=shotsOf(E,'us'),b=shotsOf(E,'opp'),g=gkStat(E0,'us'),g2=gkStat(E0,'opp');return[h?HALFL[h]:{b:'Match complet'},`${goals(a)} – ${goals(b)}`,pct(goals(a),a.length),pct(goals(b),b.length),cnt(E,'us','loss'),cnt(E,'opp','loss'),pct(g.s,g.t),pct(g2.s,g2.t)]};
   y+=table(M,y,[34,20,20,20,24,22,24,22],['Période','Score','Tir MEHB','Tir adv.','Pertes MEHB','Pertes adv.','Arrêts MEHB','Arrêts adv.'],[halfRow(1),halfRow(2),halfRow(0)])+6;
   // ----- attaque et défense -----
   const zoneMarks=(a,team)=>{const by={};a.forEach(e=>{if(!e.zone||!ZPOS[e.zone])return;const z=by[e.zone]||(by[e.zone]={t:0,g:0});z.t++;if(e.res==='goal')z.g++});return Object.entries(by).map(([k,z])=>{const r=z.g/z.t,[zx,zy]=ZPOS[k];return{x:zx,y:zy,r:1.25,col:cmix(PCOL.good,PCOL.bad,team==='us'?r:1-r),t1:`${Math.round(r*100)} %`,t2:`${k==='7M'?'7 m ':''}${z.g}/${z.t}`}})};
   const phaseRows=a=>PH.map(([k,,l])=>{const x=a.filter(e=>e.phase===k);return x.length?[l,`${goals(x)}/${x.length}`,pct(goals(x),x.length)]:null}).filter(Boolean);
   const espRows=a=>a.some(e=>espOf(e))?ESP.map(k=>{const x=a.filter(e=>espOf(e)===k);return x.length?['Espace '+k,`${goals(x)}/${x.length}`,pct(goals(x),x.length)]:['Espace '+k,'–','–']}):[];
-  function shotBlock(title,a,team){
+  function shotBlock(title,a,team,ag){
     section(title,`${goals(a)} but${goals(a)>1?'s':''} sur ${a.length} tirs · ${pct(goals(a),a.length)}`,72);
     const cw=84,s=cw/20,ch=14.4*s+1.4*s,pr=phaseRows(a),er=espRows(a),rw=CW-cw-8,rx=M+cw+8;
     need(Math.max(ch+12,8+tableH(pr.length)+tableH(er.length)+8));
-    const y0=y;label('Réussite par zone (buts / tirs)',M,y0+2);court(M,y0+4+1.4*s,cw,zoneMarks(a,team));
+    const y0=y;label('Réussite par zone (buts / tirs)',M,y0+2);court(M,y0+4+1.4*s,cw,zoneMarks(ag,team));
     F('normal',6.5,PCOL.muted);T(team==='us'?'Vert : efficace · rouge : à travailler':'Vert : bien défendu · rouge : à corriger',M,y0+ch+8);
     label('Par phase de jeu',rx,y0+2);let yy=y0+4;yy+=table(rx,yy,[rw-44,24,20],['Phase','Buts/tirs','%'],pr)+5;
     label('Par espace (0-1 … 6-0, vu du tireur)',rx,yy+2);yy+=4;yy+=table(rx,yy,[rw-44,24,20],['Espace','Buts/tirs','%'],er);
     y=Math.max(y0+ch+12,yy+5);
   }
-  shotBlock('Attaque MEHB',us,'us');
+  shotBlock('Attaque MEHB',us,'us',usg);
   const pr=playerRows(m,L).filter(r=>r.t||r.loss).sort((a,b)=>b.g-a.g||b.t-a.t);
   if(pr.length){need(tableH(Math.min(pr.length,4))+8);label('Joueurs',M,y+2);y+=4;flowTable(M,[14,60,20,22,22,18,16,14],['N°','Joueur','Poste','Buts','Tirs','%','7 m','Pertes'],pr.slice(0,16).map(r=>[r.p.num||'–',r.p.name,r.p.pos||'',{b:r.g},r.t,pct(r.g,r.t),r.t7?`${r.g7}/${r.t7}`:'–',r.loss]),[0,1,2]);y+=5}
   const dr=DEFS.map(d=>{const a=us.filter(e=>e.def===d),lo=L.filter(e=>e.team==='us'&&e.type==='loss'&&e.def===d).length;return a.length||lo?[d,a.length,{b:goals(a)},pct(goals(a),a.length),lo]:null}).filter(Boolean);
   if(dr.length){need(tableH(dr.length)+8);label('Contre chaque défense adverse',M,y+2);y+=4;y+=table(M,y,[70,28,28,30,30],['Défense','Tirs','Buts','%','Pertes'],dr)+5}
-  shotBlock('Défense · tirs adverses',op,'opp');
+  shotBlock('Défense · tirs adverses',op,'opp',opg);
   F('normal',8.5,PCOL.ink);need(8);T(`Pertes de balle provoquées chez l’adversaire : ${cnt(L,'opp','loss')}`,M,y+2);y+=8;
   // ----- gardiens -----
   function gkBlock(name,sub,shots,side,view){
@@ -1338,12 +1397,12 @@ function buildMatchPdf(JS,m){
     y=y0+14+gh+Math.max(0,tableH(tr.length)+2-gh)+6;
   }
   section('Nos gardiens',`${pct(gU.s,gU.t)} d’arrêts · ${gU.s}/${gU.t} tirs cadrés`,62);
-  const myGk=gks().filter(p=>gkStat(L,'us',p.id).t);
+  const myGk=gks().filter(p=>gkStat(L0,'us',p.id).t);
   const half=id=>{const a=gkStat(evs(m,1),'us',id),b=gkStat(evs(m,2),'us',id);return `1re MT ${pct(a.s,a.t)} · 2e MT ${pct(b.s,b.t)}`};
-  if(myGk.length)myGk.forEach(p=>gkBlock(pLab(p.id),half(p.id),op.filter(e=>e.gk===p.id),'opp','gk'));
-  else gkBlock('Tous nos gardiens','',op,'opp','gk');
+  if(myGk.length)myGk.forEach(p=>gkBlock(pLab(p.id),half(p.id),opg.filter(e=>e.gk===p.id),'opp','gk'));
+  else gkBlock('Tous nos gardiens','',opg,'opp','gk');
   section('Gardien adverse'+(m.scout.gkNum?' n°'+m.scout.gkNum:''),`${pct(gO.s,gO.t)} d’arrêts · ${gO.s}/${gO.t} tirs cadrés`,62);
-  gkBlock('Où nous avons tiré','vert = nos buts',us,'us','shooter');
+  gkBlock('Où nous avons tiré','vert = nos buts',usg,'us','shooter');
   // ----- consignes et notes -----
   const keys=(m.scout.keys||'').split('\n').map(s=>s.trim()).filter(Boolean);
   if(keys.length||m.notes.length){
@@ -1357,10 +1416,10 @@ function buildMatchPdf(JS,m){
 const TVIEWS={team:vTeam,profile:vProfile,season:vSeason,backup:vBackup};
 const TEAM_NAV=[['team','Joueurs'],['season','Saison'],['backup','Sauvegarde']];
 
-const VIEWS={cage:vCage,match:vMatch,compo:vCompo,scout:vScout,stats:vStats,gk:vGK,notes:vNotes,tactic:vTactic,bilan:vBilan,report:vReport,history:vHistory};
+const VIEWS={gkin:vGkIn,cage:vCage,match:vMatch,compo:vCompo,scout:vScout,stats:vStats,gk:vGK,notes:vNotes,tactic:vTactic,bilan:vBilan,report:vReport,history:vHistory};
 function renderView(){
   const v=$('#view');
-  document.body.classList.toggle('fit',S.mode==='match'&&phaseOf(S.view)==='pendant'&&!['bilan','cage'].includes(S.view));
+  document.body.classList.toggle('fit',S.mode==='match'&&phaseOf(S.view)==='pendant'&&!['bilan','cage','gk'].includes(S.view));
   if(S.mode==='team'){v.innerHTML=(TVIEWS[S.tview]||vTeam)();return}
   v.innerHTML=(VIEWS[S.view]||vStats)();
   if(S.view==='tactic')bindTactic();
@@ -1643,7 +1702,7 @@ document.addEventListener('click',e=>{
     case 'convoke':{const i=m.players.findIndex(p=>p.id===id);if(i>=0){m.players.splice(i,1);Object.keys(m.lineup).forEach(k=>{if(m.lineup[k]===id)delete m.lineup[k]})}else if(m.players.length<16){const tp=tById(id);if(tp)m.players.push({id:tp.id,num:tp.num,name:tShort(tp),pos:tp.poste,alt:alts(tp)})}touch();renderView();break}
     case 'selGk':u.gk=id;saveUI();renderView();break;
     case 'stage':if(phaseOf(S.view)!==v)goView(S.lastV[v]||PHASES.find(p=>p[0]===v)[3][0][0]);break;
-    case 'half':u.half=+v;saveUI();renderHeader();if(S.view==='notes'||S.view==='stats')renderView();break;
+    case 'half':u.half=+v;saveUI();renderHeader();if(S.view==='notes'||S.view==='stats'||S.view==='gkin')renderView();break;
     case 'wake':toggleWake();break;
     case 'newMatch':startNew();break;
     case 'side':m.side=v;touch();renderView();renderHeader();break;
@@ -1661,13 +1720,20 @@ document.addEventListener('click',e=>{
     case 'tphotoDel':{const p=tById(S.tp);if(p&&!TEAM.example){delete p.photo;p.updatedAt=Date.now();touchTeam();renderView();toast('Photo retirée')}break}
     case 'selP':u.p=u.p===id?null:id;renderView();break;
     case 'court':courtTap(e,el.closest('svg'));break;
+    case 'gcourt':gkTap(e,el.closest('svg'));break;
+    case 'gkTeam':u.gkTeam=v;u.gkCage=null;saveUI();renderView();break;
+    case 'gkCage':u.gkCage=u.gkCage===v?null:v;renderView();break;
+    case 'gkSeven':u.gkSeven=!u.gkSeven;if(u.gkSeven){u.gkXy=null;u.gkZone=null}renderView();break;
+    case 'gkView':u.gkView=v;saveUI();renderView();break;
+    case 'gkRes':commitGk(v);break;
+    case 'gkClear':Object.assign(u,{gkXy:null,gkZone:null,gkCage:null,gkSeven:false});renderView();break;
     case 'clearSel':Object.assign(u,{act:null,esp:null,p:null,zone:null,xy:null,cage:null,phase:'placed'});renderView();break;
     case 'cage':u.cage=u.cage===v?null:v;renderView();break;
     case 'phase':u.phase=u.phase===v&&v!=='placed'?'placed':v;if(u.phase==='seven'){u.xy=null;u.zone=null;u.esp=null;if(u.act==='loss')u.act=null}renderView();break;
     case 'esp':if(u.phase!=='seven'){u.esp=u.esp===v?null:v;renderView()}break;
     case 'ev':commit(el.dataset.type,el.dataset.res);break;
     case 'delEv':removeEv(id,true);break;
-    case 'undo':{const last=m.events[m.events.length-1];if(last)removeEv(last.id,true);break}
+    case 'undo':{const reg=m.events.filter(x=>S.view==='gkin'?isGkEv(x):!isGkEv(x)),last=reg[reg.length-1];if(last)removeEv(last.id,true);break}
     case 'addOpp':addOpp();break;
     case 'gkSide':u.gkSide=v;renderView();break;
     case 'gkSel':u.gkSel=v;renderView();break;
@@ -1740,6 +1806,8 @@ function start(){
   if(saved.oppDef)S.ui.oppDef=saved.oppDef;
   if(typeof saved.autoSwap==='boolean')S.ui.autoSwap=saved.autoSwap;
   if(typeof saved.autoPoss==='boolean')S.ui.autoPoss=saved.autoPoss;
+  if(saved.gkView==='gk'||saved.gkView==='shooter')S.ui.gkView=saved.gkView;
+  if(saved.gkTeam==='us'||saved.gkTeam==='opp')S.ui.gkTeam=saved.gkTeam;
   const cur=LS.get('hb.cur',null),m=cur&&getMatch(cur);
   S.m=(m&&!m.example)?normalize(m):newMatch([]);
   if(!m||m.example)LS.set('hb.cur',S.m.id);
