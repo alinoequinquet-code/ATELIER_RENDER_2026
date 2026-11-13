@@ -39,6 +39,10 @@ const ZL=Object.fromEntries(ZONES.map(z=>[z[0],z[1]]));
 // Zones dans le but, notées vue du tireur
 const GZ=[['HG','Haut gauche'],['MG','Milieu gauche'],['BG','Bas gauche'],['HD','Haut droite'],['MD','Milieu droite'],['BD','Bas droite'],['SOUS','Sous le gardien'],['CONT','Contournement'],['LOB','Lob']];
 const GZ6=[['HG','HD'],['MG','MD'],['BG','BD']],GZX=['SOUS','CONT','LOB'];
+// Le but vu de face, vue du tireur : 3 colonnes, les tirs particuliers au milieu (lob au-dessus du gardien, sous le gardien en bas)
+const GZ3=[['HG','LOB','HD'],['MG','CONT','MD'],['BG','SOUS','BD']];
+const gz3=view=>view==='gk'?GZ3.map(r=>r.slice().reverse()):GZ3;
+const C3D={a:38,p:1150};
 const GZL=Object.fromEntries(GZ);
 const GZT={HG:'en haut à gauche',MG:'à mi-hauteur à gauche',BG:'en bas à gauche',HD:'en haut à droite',MD:'à mi-hauteur à droite',BD:'en bas à droite',LOB:'en lob',CONT:'en contournant le gardien',SOUS:'sous le gardien'};
 const GZ_OLD={1:'HG',2:'LOB',3:'HD',4:'MG',5:'SOUS',6:'MD',7:'BG',8:'SOUS',9:'BD'};
@@ -200,7 +204,7 @@ document.addEventListener('visibilitychange',()=>{if(wantWake&&!wl&&document.vis
 /* ---------- Terrain SVG ---------- */
 function courtSVG(o){
   o=o||{};const crop=o.crop!==false,H=crop?14.4:20,vh=crop?16.1:22.5;
-  return `<svg ${o.id?`id="${o.id}"`:''} class="${o.cls||'court'}" viewBox="-0.7 -1.5 21.4 ${vh}" ${o.act?`data-act="${o.act}"`:''} role="img" aria-label="${esc(o.label||'Demi-terrain de handball')}">
+  return `<svg ${o.id?`id="${o.id}"`:''} class="${o.cls||'court'}${o.act||o.cls||o.id?'':' tilt'}" viewBox="-0.7 -1.5 21.4 ${vh}" ${o.act?`data-act="${o.act}"`:''} role="img" aria-label="${esc(o.label||'Demi-terrain de handball')}">
   <rect class="c-edge" x="-0.7" y="-1.5" width="21.4" height="${vh}"/>
   <rect class="c-floor" x="0" y="0" width="20" height="${H}"/>
   <path class="c-area" d="M2.5 0 A6 6 0 0 0 8.5 6 L11.5 6 A6 6 0 0 0 17.5 0 Z"/>
@@ -331,9 +335,10 @@ function commitGk(res){
 }
 function gkTap(ev,svg){
   if(!svg||!svg.getScreenCTM)return;
-  const p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;const r=p.matrixTransform(svg.getScreenCTM().inverse());
-  if(r.y<0)return;
-  const x=Math.round(Math.max(0,Math.min(20,r.x))*10)/10,y=Math.round(Math.min(14.2,r.y)*10)/10;
+  let r=c3dPoint(ev,svg);
+  if(!r){const p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;r=p.matrixTransform(svg.getScreenCTM().inverse())}
+  if(r.y<-0.6||r.y>14.9||r.x<-0.6||r.x>20.6)return;
+  const x=Math.round(Math.max(0,Math.min(20,r.x))*10)/10,y=Math.round(Math.max(0,Math.min(14.2,r.y))*10)/10;
   S.ui.gkXy={x,y};S.ui.gkZone=zoneAt(x,y);S.ui.gkSeven=false;renderView();
 }
 function record(){const a=S.ui.act;if(!a){toast('Choisis d’abord l’action : but, arrêt, perte de balle…');return}commit(a==='loss'?'loss':'shot',a==='loss'?undefined:a)}
@@ -590,13 +595,51 @@ function vStats(){
   </div>`;
 }
 
-function bigGoal(sel,view,off){
-  // 6 parties du but + 3 tirs particuliers ; la donnée est toujours rangée vue du tireur
-  const b=(k,cls)=>{const st=view==='gk'?mirrorZ(k):k;return `<button class="${cls||''}" data-act="gkCage" data-v="${st}" aria-pressed="${sel===st}" aria-label="${GZL[k]}" ${off?'disabled':''}>${k==='CONT'?'Contour&shy;nement':GZL[k]}</button>`};
-  return `<div class="bgoal ${off?'off':''}" role="group" aria-label="Impact dans la cage, ${view==='gk'?'vue du gardien':'vue du tireur'}">
-    <div class="bg-frame">${GZ6.map(r=>r.map(k=>b(k)).join('')).join('')}</div>
-    <div class="bg-line"></div>
-    <div class="bg-sp">${GZX.map(k=>b(k,'sp')).join('')}</div></div>`;
+// But en relief aux proportions réelles (3 m x 2 m), vu de face : cadre rayé, filet qui s'enfonce, gardien en silhouette
+function goal3D(inner,o){
+  o=o||{};
+  const bx0=.37,bx1=2.63,by0=.18,by1=1.7,P=.09,f=n=>n.toFixed(3);
+  let net='',side='';
+  for(let i=1;i<12;i++)net+=`M${f(bx0+(bx1-bx0)*i/12)} ${by0} V${by1} `;
+  for(let i=1;i<8;i++)net+=`M${bx0} ${f(by0+(by1-by0)*i/8)} H${bx1} `;
+  for(let i=1;i<6;i++){const t=i/6;side+=`M0 ${f(2*t)} L${bx0} ${f(by0+(by1-by0)*t)} M3 ${f(2*t)} L${bx1} ${f(by0+(by1-by0)*t)} M${f(3*t)} 0 L${f(bx0+(bx1-bx0)*t)} ${by0} M${f(3*t)} 2 L${f(bx0+(bx1-bx0)*t)} ${by1} `}
+  for(const t of [.34,.67])side+=`M${f(bx0*t)} ${f(by0*t)} H${f(3-(3-bx1)*t)} V${f(2-(2-by1)*t)} H${f(bx0*t)} Z `;
+  let posts='';
+  for(let x=-P,k=0;x<3+P-1e-6;x+=.2,k++)posts+=`<rect class="${k%2?'gp-b':'gp-a'}" x="${f(x)}" y="${-P}" width="${f(Math.min(.2,3+P-x))}" height="${P}"/>`;
+  for(let y=0,k=1;y<2-1e-6;y+=.2,k++){const hh=f(Math.min(.2,2-y));posts+=`<rect class="${k%2?'gp-b':'gp-a'}" x="${-P}" y="${f(y)}" width="${P}" height="${hh}"/><rect class="${k%2?'gp-b':'gp-a'}" x="3" y="${f(y)}" width="${P}" height="${hh}"/>`}
+  return `<svg class="g3d ${o.cls||''}" viewBox="-0.42 -0.36 3.84 ${o.foot?2.86:2.62}" role="${o.role||'img'}" aria-label="${esc(o.label||'But')}">
+    <rect class="g3-bg" x="-0.42" y="-0.36" width="3.84" height="${o.foot?2.86:2.62}" rx=".12"/>
+    <path class="g3-ground" d="M-0.42 2 H3.42 V${o.foot?2.5:2.26} H-0.42 Z"/>
+    <ellipse class="g3-shadow" cx="1.5" cy="2.1" rx="1.75" ry=".13"/>
+    <path class="g3-floor" d="M0 2 L${bx0} ${by1} H${bx1} L3 2 Z"/>
+    <path class="g3-wall" d="M0 0 L${bx0} ${by0} V${by1} L0 2 Z M3 0 L${bx1} ${by0} V${by1} L3 2 Z"/>
+    <path class="g3-roof" d="M0 0 L${bx0} ${by0} H${bx1} L3 0 Z"/>
+    <rect class="g3-back" x="${bx0}" y="${by0}" width="${f(bx1-bx0)}" height="${f(by1-by0)}"/>
+    <path class="g3-net" d="${net}"/><path class="g3-net side" d="${side}"/>
+    <g class="g3-keeper"><circle cx="1.5" cy=".5" r=".125"/><path d="M1.31 .68 H1.69 L1.66 1.24 H1.34 Z"/><path class="limb" d="M1.33 .72 L1 .42 M1.67 .72 L2 .42"/><path class="limb leg" d="M1.4 1.2 L1.24 1.96 M1.6 1.2 L1.76 1.96"/></g>
+    ${inner||''}
+    ${posts}<path class="g3-frame" d="M${-P} 2 V${-P} H${3+P} V2 M0 2 V0 H3 V2"/><path class="g3-shine" d="M${-P+.02} 1.98 V${-P+.02} H${3+P-.02}"/>
+    <path class="g3-line" d="M-0.42 2 H3.42"/>
+    ${o.after||''}
+  </svg>`;
+}
+const gzCell=(c,r)=>({x:c+.03,y:r*2/3+.03,w:.94,h:2/3-.06});
+function bigGoal(sel,view){
+  // Saisie : on touche l'une des 9 cases ; la donnée est toujours rangée vue du tireur
+  const cells=gz3(view).map((row,r)=>row.map((st,c)=>{
+    const k=view==='gk'?mirrorZ(st):st,{x,y,w,h}=gzCell(c,r),cx=x+w/2,cy=y+h/2,on=sel===st,two=k==='SOUS';
+    return `<g class="gz ${GZX.includes(k)?'sp':''}" data-act="gkCage" data-v="${st}" role="button" aria-pressed="${on}" aria-label="${GZL[k]}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".06"/>${two?`<text x="${cx}" y="${cy-.03}">Sous le</text><text x="${cx}" y="${cy+.13}">gardien</text>`:`<text x="${cx}" y="${cy+.05}">${GZL[k]}</text>`}</g>`}).join('')).join('');
+  return goal3D(cells,{cls:'pick',role:'group',label:'Impact dans le but, '+(view==='gk'?'vue du gardien':'vue du tireur')});
+}
+// Point touché sur le terrain incliné en 3D : on défait la perspective (rotation autour du centre du sol)
+function c3dPoint(ev,svg){
+  const floor=svg.closest('.c3d-floor'),scene=floor&&floor.parentElement;if(!scene)return null;
+  const sr=scene.getBoundingClientRect(),a=C3D.a*Math.PI/180,d=C3D.p;
+  const sx=ev.clientX-sr.left,sy=ev.clientY-sr.top,pox=sr.width/2,poy=sr.height/2;
+  const fw=floor.offsetWidth,fh=floor.offsetHeight,Ox=floor.offsetLeft+fw/2,Oy=floor.offsetTop+fh/2;
+  const dy=d*(sy-Oy)/(d*Math.cos(a)+(sy-poy)*Math.sin(a)),k=d/(d-dy*Math.sin(a)),dx=(sx-pox)/k+pox-Ox;
+  const vb=svg.viewBox.baseVal,sc=Math.min(fw/vb.width,fh/vb.height),ox=(fw-vb.width*sc)/2,oy=(fh-vb.height*sc)/2;
+  return{x:vb.x+(dx+fw/2-ox)/sc,y:vb.y+(dy+fh/2-oy)/sc};
 }
 function vGkIn(){
   const m=S.m,u=S.ui,opp=u.gkTeam==='opp';
@@ -604,10 +647,10 @@ function vGkIn(){
   const L=evs(m,u.half).filter(isGkEv).filter(e=>e.team===u.gkTeam),on=L.filter(isOn),sv=on.filter(e=>e.res==='saved').length;
   const mine=opp&&u.gk?on.filter(e=>e.gk===u.gk):on,msv=mine.filter(e=>e.res==='saved').length;
   const labels=ZONES.filter(z=>z[0]!=='7M').map(z=>`<text class="zl ${u.gkZone===z[0]?'on':''}" x="${z[2]}" y="${z[3]}">${z[0]}</text>`).join('');
-  const mk=u.gkXy?`<circle class="mk" cx="${u.gkXy.x}" cy="${u.gkXy.y}" r=".6"/>`:'';
+  const mk=u.gkXy?`<ellipse class="mk-sh" cx="${u.gkXy.x}" cy="${u.gkXy.y+.25}" rx=".8" ry=".5"/><circle class="mk ball" cx="${u.gkXy.x}" cy="${u.gkXy.y}" r=".62"/>`:'';
   const s1=u.gkSeven||!!u.gkXy,s2=!!u.gkCage;
   const recap=[u.gkSeven?'Jet de 7 m':(u.gkZone?ZL[u.gkZone]:null),u.gkCage?GZL[u.gkCage].toLowerCase()+' (vue du tireur)':null].filter(Boolean);
-  const feed=m.events.filter(isGkEv).slice(-4).reverse();
+  const feed=m.events.filter(isGkEv).slice(-3).reverse();
   const av=id=>{const ph=photoOf(id);return ph?`<img class="pav" src="${ph}" alt="">`:''};
   const gkPick=opp?(gks().length?`<div class="gk-pick">${gks().map(p=>`<button class="ptile gk" data-act="selGk" data-id="${p.id}" aria-pressed="${u.gk===p.id}"><b>${av(p.id)}${esc(ptag(p))}</b><span>${esc(p.name)}</span></button>`).join('')}</div>`:'<span class="hint">Aucun gardien sélectionné pour ce match (onglet Compo).</span>'):`<span class="gk-opp">Gardien adverse${m.scout.gkNum?' n°'+esc(m.scout.gkNum):''}</span>`;
   const R=opp?[['saved','Arrêt','good'],['goal','But','bad']]:[['goal','But','good'],['saved','Arrêt','bad']];
@@ -617,15 +660,16 @@ function vGkIn(){
     ${gkPick}
     <div class="gki-tally"><b>${pct(opp&&u.gk?msv:sv,opp&&u.gk?mine.length:on.length)}</b><span>${opp?(u.gk?'arrêts de '+esc(pLab(u.gk,true)):'arrêts'):'arrêts du GB adverse'}<br>${HALFL[u.half]} · ${opp&&u.gk?msv:sv}/${opp&&u.gk?mine.length:on.length} cadrés</span></div>
   </section>
-  <section class="card gki-court"><div class="card-head"><h2><span class="step ${s1?'done':''}">${s1?'✓':'1'}</span>D’où part le tir ?</h2><button class="chip" data-act="gkSeven" aria-pressed="${u.gkSeven}">Jet de 7 m</button></div>
-    <div class="lv-svg ${u.gkSeven?'off':''}">${courtSVG({act:'gcourt',id:'gkcourt',extra:labels+mk,label:'Endroit du tir sur le terrain'})}</div>
+  <section class="card arena gki-court"><div class="card-head"><h2><span class="step ${s1?'done':''}">${s1?'✓':'1'}</span>D’où part le tir ?</h2><button class="chip" data-act="gkSeven" aria-pressed="${u.gkSeven}">Jet de 7 m</button></div>
+    <div class="c3d ${u.gkSeven?'off':''}" style="perspective:${C3D.p}px"><div class="c3d-floor" style="transform:rotateX(${C3D.a}deg)">${courtSVG({act:'gcourt',id:'gkcourt',extra:labels+mk,label:'Endroit du tir sur le terrain'})}</div></div>
   </section>
-  <section class="card gki-goal"><div class="card-head"><h2><span class="step ${s2?'done':''}">${s2?'✓':'2'}</span>Où dans la cage ?</h2>
+  <section class="card arena gki-goal"><div class="card-head"><h2><span class="step ${s2?'done':''}">${s2?'✓':'2'}</span>Où dans la cage ?</h2>
       <div class="seg sm" role="group" aria-label="Sens de lecture du but">${[['shooter','Vue du tireur'],['gk','Vue du gardien']].map(([v,l])=>`<button data-act="gkView" data-v="${v}" aria-pressed="${u.gkView===v}">${l}</button>`).join('')}</div></div>
-    ${bigGoal(u.gkCage,u.gkView,false)}
+    <div class="g3wrap">${bigGoal(u.gkCage,u.gkView)}</div>
   </section>
-  <section class="card gki-res"><div class="card-head"><h2><span class="step">3</span>Résultat</h2>${recap.length?'<button class="btn ghost sm" data-act="gkClear">Effacer</button>':''}</div>
-    <div class="sel">${recap.length?esc(recap.join(' · ')):'<span class="ph">Touche le terrain, puis la cage, puis le résultat</span>'}</div>
+  <section class="card gki-res">
+    <div class="gr-sel"><div class="card-head"><h2><span class="step">3</span>Résultat</h2>${recap.length?'<button class="btn ghost sm" data-act="gkClear">Effacer</button>':''}</div>
+      <div class="sel">${recap.length?esc(recap.join(' · ')):'<span class="ph">Touche le terrain, puis le but, puis le résultat</span>'}</div></div>
     <div class="gki-big">${R.map(([k,l,c])=>`<button class="gres ${c}" data-act="gkRes" data-v="${k}">${l}</button>`).join('')}</div>
     <div class="gki-small"><button class="btn" data-act="gkRes" data-v="post">Poteau</button><button class="btn" data-act="gkRes" data-v="miss">Hors cadre</button></div>
     <div class="gki-feed"><div class="card-head"><span class="lab">Derniers tirs</span><button class="btn ghost sm" data-act="undo" ${feed.length?'':'disabled'}>Annuler le dernier</button></div>
@@ -642,7 +686,7 @@ function vGK(){
   const cell=k=>{const c=on.filter(e=>cz(e)===k),s=c.filter(e=>e.res==='saved').length,t=c.length;
     const bg=t?`background:color-mix(in srgb,color-mix(in srgb,var(--good) ${Math.round(100*s/t)}%,var(--bad)) 32%,var(--surface))`:'';
     return `<div style="${bg}"><small>${GZL[k]}</small><b>${t?pct(s,t):'–'}</b><span>${t?`${s} arr. / ${t}`:'aucun tir'}</span></div>`};
-  const cells=`<div class="heat">${GZ6.flat().map(cell).join('')}</div><div class="heat-sp">${GZX.map(cell).join('')}</div>`;
+  const cells=`<div class="heat">${GZ3.flat().map(cell).join('')}</div>`;
   const noCage=on.filter(e=>!cz(e)).length;
   const zr=ZONES.map(z=>{const a=on.filter(e=>e.zone===z[0]);if(!a.length)return null;const s=a.filter(e=>e.res==='saved').length;return[z[1],a.length,s,a.length-s,pct(s,a.length)]}).filter(Boolean);
   const who=side==='us'?(u.gkSel?pLab(u.gkSel):'Tous nos gardiens'):('Gardien adverse'+(m.scout.gkNum?' n°'+esc(m.scout.gkNum):''));
@@ -651,7 +695,7 @@ function vGK(){
   <div class="row">${perChips('gkPer',u.gkPer,true)}${side==='us'?`<div class="chips"><button class="chip" data-act="gkSel" data-v="" aria-pressed="${!u.gkSel}">Tous</button>${gks().map(p=>`<button class="chip" data-act="gkSel" data-v="${p.id}" aria-pressed="${u.gkSel===p.id}">${esc(pLab(p.id))}</button>`).join('')}</div>`:''}</div>
   <div class="grid2 fx gkg">
     <div class="card"><span class="lab">${esc(who)}</span><div class="big">${pct(sv,on.length)}</div><p class="hint">${sv} arrêt${sv>1?'s':''} sur ${on.length} tir${on.length>1?'s':''} cadré${on.length>1?'s':''}${off?` · ${off} tir${off>1?'s':''} non cadré${off>1?'s':''} ou contré${off>1?'s':''}`:''}</p>
-      <div class="heatwrap" aria-label="Arrêts par zone du but">${cells}</div>${noCage?`<p class="hint">${noCage} tir${noCage>1?'s':''} cadré${noCage>1?'s':''} sans zone de cage renseignée.</p>`:''}
+      ${goalSVG(cageStats(on),side==='us'?'opp':'us','shooter')}${noCage?`<p class="hint">${noCage} tir${noCage>1?'s':''} cadré${noCage>1?'s':''} sans zone de cage renseignée.</p>`:''}
     </div>
     <div class="card"><h2>D’où viennent les tirs</h2>${courtSVG({extra:dotsSVG(shots,shooter),label:'Carte des tirs'})}${legend(shooter)}
       ${tbl(['Zone de tir','Cadrés','Arrêts','Buts','% arrêts'],zr)}</div>
@@ -778,26 +822,15 @@ function topCell(cells,key){
   let best=null;Object.entries(cells).forEach(([i,c])=>{const v=key?c[key]:c.t;if(v&&(!best||v>best.v))best={i,v}});return best;
 }
 function goalSVG(cells,side,view){
-  const W=3,H=2,maxT=Math.max(1,...Object.values(cells).map(c=>c.t));
-  const box=(k,x,y,w,h,big)=>{
-    const c=cells[k],cx=x+w/2,cy=y+h/2,lab=GZL[view==='gk'?mirrorZ(k):k];
-    if(!c)return `<rect class="cell-empty" x="${x}" y="${y}" width="${w}" height="${h}" rx=".05"/><text class="ce" x="${cx}" y="${cy+.04}">${lab}</text>`;
-    const good=Math.round(100*(side==='opp'?c.s/c.t:c.g/c.t)),sat=Math.round(32+58*c.t/maxT),tone=sat>=60?'hi':'lo';
-    const sub=side==='opp'?`${plural(c.s,'arrêt')} · ${plural(c.g,'but')}`:`${plural(c.g,'but')} · ${plural(c.s,'arrêt')}`;
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".05" style="fill:color-mix(in srgb,color-mix(in srgb,var(--good) ${good}%,var(--bad)) ${sat}%,var(--surface))"/>
-      <text class="cl ${tone}" x="${cx}" y="${y+.14}">${lab}</text><text class="cn sm ${tone}" x="${cx}" y="${cy+.08}">${c.t}</text><text class="cs ${tone}" x="${cx}" y="${y+h-.06}">${sub}</text>`;
-  };
-  // 4 quarts du but ; vue du gardien = gauche et droite inversées
-  let out='<rect class="net" x="0" y="0" width="3" height="2"/>';
-  GZ6.forEach((row,r)=>row.forEach((k,c)=>{const cc=view==='gk'?1-c:c;out+=box(k,cc*1.5+.03,r*2/3+.03,1.44,2/3-.06,true)}));
-  const P=.08;let posts='';
-  for(let x=-P,k=0;x<W+P-1e-6;x+=.2,k++)posts+=`<rect class="${k%2?'post-b':'post-a'}" x="${x.toFixed(3)}" y="${-P}" width="${Math.min(.2,W+P-x).toFixed(3)}" height="${P}"/>`;
-  for(let y=0,k=1;y<H-1e-6;y+=.2,k++){const hh=Math.min(.2,H-y).toFixed(3);posts+=`<rect class="${k%2?'post-b':'post-a'}" x="${-P}" y="${y.toFixed(3)}" width="${P}" height="${hh}"/><rect class="${k%2?'post-b':'post-a'}" x="${W}" y="${y.toFixed(3)}" width="${P}" height="${hh}"/>`}
-  posts+=`<path class="post-frame" d="M${-P} ${H} V${-P} H${W+P} V${H} M0 ${H} V0 H${W} V${H}"/>`;
+  const maxT=Math.max(1,...Object.values(cells).map(c=>c.t));
+  const inner=gz3(view).map((row,r)=>row.map((st,c)=>{
+    const d=cells[st],{x,y,w,h}=gzCell(c,r),cx=x+w/2,cy=y+h/2,lab=GZL[view==='gk'?mirrorZ(st):st];
+    if(!d)return `<g class="gz empty"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".06"/><text class="l" x="${cx}" y="${cy+.04}">${lab}</text></g>`;
+    const good=Math.round(100*(side==='opp'?d.s/d.t:d.g/d.t)),sat=Math.round(45+50*d.t/maxT);
+    const sub=side==='opp'?`${plural(d.s,'arrêt')} · ${plural(d.g,'but')}`:`${plural(d.g,'but')} · ${plural(d.s,'arrêt')}`;
+    return `<g class="gz stat"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".06" style="fill:color-mix(in srgb,color-mix(in srgb,var(--good) ${good}%,var(--bad)) ${sat}%,#161c52)"/><text class="l" x="${cx}" y="${y+.13}">${lab}</text><text class="n" x="${cx}" y="${cy+.1}">${d.t}</text><text class="s" x="${cx}" y="${y+h-.07}">${sub}</text></g>`}).join('')).join('');
   const L=view==='gk'?'côté AIL-D':'côté AIL-G',R=view==='gk'?'côté AIL-G':'côté AIL-D';
-  const sp=GZX.map((k,i)=>box(k,i*1.02,2.3,.96,.58,false)).join('');
-  return `<svg class="goalsvg" viewBox="-0.2 -0.2 3.4 3.18" role="img" aria-label="Tirs dans le but, ${view==='gk'?'vue du gardien':'vue du tireur'}">${out}${posts}
-    <path class="gline" d="M-0.2 2 H3.2"/><text class="gside" x="0" y="2.17">◀ ${L}</text><text class="gside" x="3" y="2.17" text-anchor="end">${R} ▶</text>${sp}</svg>`;
+  return goal3D(inner,{cls:'goalsvg',foot:true,label:'Tirs dans le but, '+(view==='gk'?'vue du gardien':'vue du tireur'),after:`<text class="g3-side" x="-0.3" y="2.3">◀ ${L}</text><text class="g3-side" x="3.3" y="2.3" text-anchor="end">${R} ▶</text>`});
 }
 function vCage(){
   const m=S.m,u=S.ui,side=u.czSide,view=u.czView,L=gkEv(evs(m,u.czPer)),hasEsp=L.some(e=>espOf(e)),byEsp=u.czBy==='esp'&&hasEsp;
@@ -1333,18 +1366,16 @@ function buildMatchPdf(JS,m){
     const box=(k,bx,by,bw,bh,big)=>{
       const c=cells[k];
       const lab=GZL[view==='gk'?mirrorZ(k):k];
-      if(!c){fill(PCOL.soft);doc.rect(bx,by,bw,bh,'F');F('normal',big?7:6,PCOL.muted);T(lab,bx+bw/2,by+bh/2+1,{align:'center'});return}
+      if(!c){fill(PCOL.soft);doc.rect(bx,by,bw,bh,'F');F('normal',5.6,PCOL.muted);T(lab,bx+bw/2,by+bh/2+1,{align:'center'});return}
       const ratio=side==='opp'?c.s/c.t:c.g/c.t,k2=.35+.6*c.t/maxT,dark=k2>.62,ink=dark?PCOL.white:PCOL.ink;
       fill(cmix(cmix(PCOL.good,PCOL.bad,ratio),PCOL.white,k2));doc.rect(bx,by,bw,bh,'F');
-      F('normal',big?5.6:5.4,ink);T(lab,bx+bw/2,by+(big?2.7:2.6),{align:'center'});
+      F('normal',5.2,ink);T(lab,bx+bw/2,by+2.6,{align:'center'});
       F('bold',big?10:9,ink);T(String(c.t),bx+bw/2,by+bh/2+(big?1.9:1.6),{align:'center'});
-      F('normal',big?5.4:5.2,ink);T(side==='opp'?`${c.s} arr. · ${c.g} but${c.g>1?'s':''}`:`${c.g} but${c.g>1?'s':''} · ${c.s} arr.`,bx+bw/2,by+bh-(big?1.1:1.3),{align:'center'});
+      F('normal',5,ink);T(side==='opp'?`${c.s} arr. · ${c.g} but${c.g>1?'s':''}`:`${c.g} but${c.g>1?'s':''} · ${c.s} arr.`,bx+bw/2,by+bh-(big?1.1:1.3),{align:'center'});
     };
-    GZ6.forEach((row,r)=>row.forEach((k,c)=>box(k,x+(view==='gk'?1-c:c)*w/2+.4,yy+r*h/3+.4,w/2-.8,h/3-.8,true)));
-    const sy=yy+h+2.2,sw=(w-2)/3;
-    GZX.forEach((k,i)=>box(k,x+i*(sw+1),sy,sw,11,false));
-    F('normal',6.5,PCOL.muted);T(view==='gk'?'Vue du gardien':'Vue du tireur',x+w/2,sy+11+3.6,{align:'center'});
-    return h+2.2+11+5;
+    gz3(view).forEach((row,r)=>row.forEach((k,c)=>box(k,x+c*w/3+.35,yy+r*h/3+.35,w/3-.7,h/3-.7,true)));
+    F('normal',6.5,PCOL.muted);T(view==='gk'?'Vue du gardien':'Vue du tireur',x+w/2,yy+h+3.6,{align:'center'});
+    return h+5;
   }
   const L0=m.events,L=stEv(L0),LG=gkEv(L0),us=shotsOf(L,'us'),op=shotsOf(L,'opp'),usg=shotsOf(LG,'us'),opg=shotsOf(LG,'opp'),gU=gkStat(L0,'us'),gO=gkStat(L0,'opp'),sc=scoreOf(m);
   // ----- en-tête -----
@@ -1389,7 +1420,7 @@ function buildMatchPdf(JS,m){
   function gkBlock(name,sub,shots,side,view){
     const on=shots.filter(isOn),sv=on.filter(e=>e.res==='saved').length;
     const tr=STYPES.map(([k,l])=>{const a=on.filter(e=>stype(e)===k),s2=a.filter(e=>e.res==='saved').length;return a.length?[l,a.length,{b:s2},pct(s2,a.length)]:null}).filter(Boolean);
-    const gw=56,gh=gw*2/3+18.2,rx=M+gw+12,rw=CW-gw-12;
+    const gw=66,gh=gw*2/3+5,rx=M+gw+12,rw=CW-gw-12;
     need(Math.max(gh+18,tableH(tr.length)+20));
     const y0=y;F('bolditalic',10,PCOL.navy);T(name,M,y0+3.5);F('normal',8,PCOL.muted);T(`${pct(sv,on.length)} d’arrêts · ${sv} arrêt${sv>1?'s':''} sur ${on.length} tirs cadrés${sub?' · '+sub:''}`,M,y0+8);
     goal(M+2,y0+14,gw,cageStats(shots),side,view);

@@ -252,9 +252,9 @@ textarea.in.dg-txt{min-height:170px;font-size:17px}
 
 /* ---------- Gardien ---------- */
 .big{font:800 64px/1 var(--display);font-variant-numeric:tabular-nums}
-.heat{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;border:7px solid var(--ink);border-bottom:0;padding:6px;border-radius:6px 6px 0 0;max-width:440px;width:100%}
-.heat div{aspect-ratio:2.2;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2)}
-.heat b{font:800 26px/1 var(--display);font-variant-numeric:tabular-nums}
+.heat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border:9px solid transparent;border-bottom:0;border-image:repeating-linear-gradient(45deg,#D7263D 0 10px,#fff 10px 20px) 9;padding:6px;max-width:520px;width:100%}
+.heat div{aspect-ratio:1.5;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2)}
+.heat b{font:800 24px/1 var(--display);font-variant-numeric:tabular-nums}
 .heat span{font-size:12.5px}
 
 /* ---------- KPI / tableaux ---------- */
@@ -433,7 +433,7 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .pnum.ph{padding:0;overflow:hidden;position:relative;background:var(--surface-2)}
 .pnum.ph img{width:100%;height:100%;object-fit:cover}
 .pnum.ph i{position:absolute;right:-2px;bottom:-2px;font:italic 800 14px/1 var(--display);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:3px 5px;box-shadow:0 0 0 2px var(--surface)}
-.heatwrap{display:flex;flex-direction:column;gap:8px;max-width:440px;width:100%}
+.heatwrap{display:flex;flex-direction:column;gap:8px;max-width:520px;width:100%}
 .heat-sp{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .heat-sp div{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--surface-2);padding:8px 4px}
 .heat small,.heat-sp small{font-size:11.5px;font-weight:700;color:var(--muted)}
@@ -465,6 +465,7 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 
 /* ---------- Onglet Gardiens : saisie des tirs ---------- */
 .gki{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"top top" "court goal" "res res";align-items:start}
+.gr-sel{display:flex;flex-direction:column;gap:8px;min-width:0}
 .gki-top{grid-area:top;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 14px}
 .gki-court{grid-area:court}.gki-goal{grid-area:goal}.gki-res{grid-area:res}
 .gki>.card{border-top:5px solid var(--accent)}
@@ -500,6 +501,52 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 .gki-feed{display:flex;flex-direction:column;gap:6px;min-height:0}
 .gki-feed .feed{overflow:auto}
 @media (max-width:680px){.gki{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "court" "goal" "res"}}
+
+/* ---------- Visuels en relief : but 3 m x 2 m et terrain en perspective ---------- */
+.card.arena{background:radial-gradient(130% 85% at 50% -10%,#3742A6 0%,#181E5A 52%,#0B0F33 100%);border-color:#0B0F33;color:#fff;--ink:#fff;--muted:#C8CDF2;--line:#434CA6;--surface:#1B2262;--surface-2:#2A3384;box-shadow:0 10px 24px rgba(11,15,51,.28)}
+.card.arena h2{color:#fff}
+.g3wrap{display:flex;justify-content:center;align-items:center;min-height:0}
+.g3d{display:block;width:100%;height:auto;max-width:660px;margin:0 auto;border-radius:14px;touch-action:manipulation}
+.g3-bg{fill:#10154A}.card.arena .g3-bg{fill:transparent}
+.g3-ground{fill:#1D2570;opacity:.9}.card.arena .g3-ground{opacity:.55}
+.g3-shadow{fill:#000;opacity:.4}
+.g3-floor{fill:#070A2C;opacity:.7}
+.g3-wall{fill:#fff;opacity:.06}.g3-roof{fill:#fff;opacity:.1}
+.g3-back{fill:#060926;opacity:.82}
+.g3-net{fill:none;stroke:#fff;stroke-width:.012;opacity:.4}.g3-net.side{opacity:.28}
+.g3-keeper{fill:#fff;opacity:.2;pointer-events:none}
+.g3-keeper .limb{fill:none;stroke:#fff;stroke-width:.11;stroke-linecap:round}.g3-keeper .leg{stroke-width:.13}
+.gp-a{fill:#D7263D}.gp-b{fill:#fff}
+.g3-frame{fill:none;stroke:#080B2A;stroke-width:.014}
+.g3-shine{fill:none;stroke:#fff;stroke-width:.016;opacity:.5}
+.g3-line{stroke:#fff;stroke-width:.03;opacity:.9}
+.g3-side{font:600 .1px var(--body);fill:#fff;opacity:.78}
+.gz rect{fill:rgba(255,255,255,.1);stroke:rgba(255,255,255,.55);stroke-width:.012;stroke-dasharray:.05 .035}
+.gz text{font:700 .132px var(--body);fill:#fff;text-anchor:middle;pointer-events:none}
+.g3d.pick .gz{cursor:pointer}
+.g3d.pick .gz.sp rect{fill:rgba(253,197,19,.17);stroke:rgba(253,197,19,.85)}
+.g3d.pick .gz[aria-pressed="true"] rect{fill:var(--gold);stroke:#fff;stroke-width:.03;stroke-dasharray:none}
+.g3d.pick .gz[aria-pressed="true"] text{fill:#14173A}
+.gz.empty rect{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.3)}
+.gz.empty .l{font:600 .1px var(--body);opacity:.6}
+.gz.stat rect{stroke:rgba(255,255,255,.75);stroke-dasharray:none}
+.gz.stat .l{font:600 .088px var(--body)}
+.gz.stat .n{font:800 .27px var(--display)}
+.gz.stat .s{font:600 .076px var(--body)}
+.c3d{position:relative;width:100%;min-height:0;display:flex;align-items:center;justify-content:center}
+.c3d-floor{width:88%;transform-origin:50% 50%;filter:drop-shadow(0 24px 16px rgba(0,0,0,.5))}
+.c3d-floor .court{display:block;width:100%;height:auto;border-radius:10px}
+.c3d.off{opacity:.3;pointer-events:none}
+.mk-sh{fill:#000;opacity:.35;pointer-events:none}
+.mk.ball{stroke:#fff;stroke-width:.12}
+.court.tilt{transform:perspective(1150px) rotateX(30deg);transform-origin:50% 58%;filter:drop-shadow(0 16px 10px rgba(0,0,0,.3))}
+.c3d .zl{opacity:.82}
+.gres{background-image:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 48%);text-shadow:0 2px 0 rgba(0,0,0,.2);margin-bottom:6px}
+.gres.good{box-shadow:0 6px 0 color-mix(in srgb,var(--good) 62%,#000),0 14px 18px rgba(0,0,0,.2)}
+.gres.bad{box-shadow:0 6px 0 color-mix(in srgb,var(--bad) 62%,#000),0 14px 18px rgba(0,0,0,.2)}
+.gres:active{transform:translateY(5px)}
+.gres.good:active{box-shadow:0 1px 0 color-mix(in srgb,var(--good) 62%,#000)}
+.gres.bad:active{box-shadow:0 1px 0 color-mix(in srgb,var(--bad) 62%,#000)}
 /* ---------- Onglet Stats : espace sur la ligne de défense ---------- */
 .espline{display:grid;grid-template-columns:repeat(6,minmax(0,1fr) 20px) minmax(0,1fr);align-items:center;gap:4px}
 .espline button{min-height:56px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);font:800 16px/1 var(--display);color:var(--ink);padding:0;min-width:0}
@@ -558,10 +605,11 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .gki{flex:1 1 auto;min-height:0;align-items:stretch;gap:10px}
   body.fit .gki>.card{min-height:0;overflow:hidden}
   body.fit .gki-top{padding-block:8px}
-  body.fit .gki-court .lv-svg{flex:1 1 0;min-height:0}
-  body.fit .gki-court .lv-svg .court{height:100%;width:100%}
-  body.fit .gki-goal .bgoal{flex:1 1 0;min-height:0}
-  body.fit .gki-goal .bg-frame{flex:1 1 0;min-height:0}
+  body.fit .gki-court .c3d{flex:1 1 0;min-height:0}
+  body.fit .gki-court .c3d-floor{height:122%;flex:none}
+  body.fit .gki-court .c3d-floor .court{height:100%}
+  body.fit .gki-goal .g3wrap{flex:1 1 0;min-height:0}
+  body.fit .gki-goal .g3d{max-height:100%}
   body.fit .gki-feed{flex:1 1 0}
   body.fit .lv{flex:1 1 auto;min-height:0;align-items:stretch;gap:10px}
   body.fit .lv>.card{min-height:0;overflow:auto}
@@ -608,7 +656,16 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
 }
 @media (min-width:740px) and (min-height:600px) and (orientation:landscape){
   body.fit .lv{grid-template-columns:minmax(260px,.85fr) minmax(0,1fr) minmax(0,1.1fr);grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"team team team" "act players where" "act players feed"}
-  body.fit .gki{grid-template-columns:minmax(0,1.38fr) minmax(0,1fr) minmax(240px,.7fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top top" "court goal res"}
+  body.fit .gki{grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top top" "court goal" "res res"}
+  body.fit .gki-res{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.9fr) minmax(0,.62fr) minmax(0,1.4fr);gap:12px;align-items:stretch;overflow:visible}
+  body.fit .gki-res .gki-big{align-items:stretch}
+  body.fit .gki-res .gres{min-height:92px;margin-bottom:6px}
+  body.fit .gki-res .gki-small{grid-template-columns:1fr;align-content:stretch}
+  body.fit .gki-res .gki-small .btn{min-height:44px}
+  body.fit .gki-res .gki-feed{flex:none;max-height:104px;overflow:hidden}
+  body.fit .gki-res .feed{overflow:auto}
+  body.fit .gki-res .feed li{min-height:32px;font-size:12.5px;padding-block:2px}
+  body.fit .gki-res .feed .icon-btn{width:30px;height:30px}
   body.fit .lv-team{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:12px;padding-block:8px}
   body.fit .lv-team .score{margin-left:0;order:-1;padding-right:6px}
   body.fit .lv-team .seg.big button{padding:0 18px}
@@ -633,8 +690,18 @@ h2.sect{margin-top:8px;padding-top:14px;border-top:2px solid var(--line)}
   body.fit .head .seg button{padding:0 10px}
   body.fit .lv-team{padding-block:8px}
   body.fit .lv{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr);grid-template-areas:"team team" "act players" "where where" "feed feed"}
-  body.fit .gki{grid-template-rows:auto minmax(0,.9fr) minmax(0,1fr);grid-template-areas:"top top" "court court" "goal res"}
-  body.fit .gres{min-height:84px}
+  body.fit .gki{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,.92fr) minmax(0,1fr) auto;grid-template-areas:"top" "court" "goal" "res"}
+  body.fit .gki-res{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"sel feed" "big big" "small small";overflow:visible}
+  body.fit .gki-res .gki-feed{flex:none;max-height:96px;overflow:hidden}
+  body.fit .gki-res .feed{overflow:auto}
+  body.fit .gki-res .feed li{min-height:32px;font-size:12.5px;padding-block:2px}
+  body.fit .gki-res .feed .icon-btn{width:30px;height:30px}
+  body.fit .gki-res .gki-small .btn{min-height:44px}
+  body.fit .gki-res .gr-sel{grid-area:sel}
+  body.fit .gki-res .gki-feed{grid-area:feed}
+  body.fit .gki-res .gki-big{grid-area:big}
+  body.fit .gki-res .gki-small{grid-area:small;grid-template-columns:1fr 1fr}
+  body.fit .gki-res .gres{min-height:84px}
   body.fit .lv-team .swap{max-width:220px;white-space:normal;line-height:1.15}
   body.fit .lv-wgrid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);height:100%}
   body.fit .lv-team{flex-wrap:nowrap;gap:8px}
