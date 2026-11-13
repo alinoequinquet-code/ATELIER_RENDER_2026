@@ -452,13 +452,17 @@ const ICONS={
   season:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17.5h3"/>',
   history:'<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/>'
 };
-const B2T_MARK='<svg viewBox="0 0 64 64"><defs><clipPath id="b2tc"><rect width="64" height="64" rx="13"/></clipPath></defs><g clip-path="url(#b2tc)"><rect width="64" height="64" fill="#2C337F"/><rect y="55" width="64" height="9" fill="#FDC513"/></g><text x="32" y="42" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-style="italic" font-weight="800" font-size="33" fill="#FFFFFF">B<tspan fill="#FDC513">2</tspan>T</text></svg>';
+const B2T_MARK='<svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="#0B0F30"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="#E9C46A" stroke-opacity=".7" stroke-width="1.6"/><path d="M14 45.5 H50" stroke="#E9C46A" stroke-width="2.4" stroke-linecap="round"/><text x="32" y="38" text-anchor="middle" style="font:800 expanded 20px Archivo,Arial,sans-serif;letter-spacing:-.6px" fill="#FFFFFF">B<tspan fill="#E9C46A">2</tspan>T</text></svg>';
 const ICON_MATCH='<circle cx="12" cy="12" r="8.5"/><path d="M5.2 8.6c3 1.1 4.6 3.9 4.3 7.6M18.8 8.6c-3 1.1-4.6 3.9-4.3 7.6M8.7 4.2c1.7 2 5 2 6.6 0"/>';
+let THEME=LS.get('b2t.theme','nuit')==='jour'?'jour':'nuit';
+function applyTheme(){if(THEME==='jour')document.documentElement.dataset.b2t='jour';else delete document.documentElement.dataset.b2t;const mt=document.querySelector('meta[name="theme-color"]');if(mt)mt.content='#070A20'}
+applyTheme();
 function renderTop(){
   const live=S.mode==='match'&&phaseOf(S.view)==='pendant';
   $('#top').innerHTML=`<span class="logo" aria-hidden="true">${B2T_MARK}</span><b class="wm" aria-label="Banc2Touche">Banc<em>2</em>Touche</b>
   <div class="tabs" role="tablist" aria-label="Sections">${[['team','Effectif',ICONS.team],['match','Match',ICON_MATCH]].map(([k,l,ic])=>`<button role="tab" data-act="mode" data-v="${k}" aria-selected="${S.mode===k}"><svg viewBox="0 0 24 24" aria-hidden="true">${ic}</svg>${l}</button>`).join('')}</div>
   ${APP?`${(BKM.lastChange||BKM.lastExport)?`<button class="bkchip ${needBackup()?'need':''}" data-act="goBackup">${needBackup()?'Sauvegarde à faire':'Sauvegardé '+relTime(BKM.lastExport)}</button>`:''}<div class="sync" id="sync" data-s="${S.sync}" hidden><i></i><span></span></div>`:`<div class="sync" id="sync" data-s="${S.sync}"><i></i><span>${SYNC[S.sync]}</span></div>`}
+  <button class="wake thm" data-act="theme" aria-label="${THEME==='jour'?'Passer au thème Nuit':'Passer au thème Jour'}"><svg viewBox="0 0 24 24" aria-hidden="true">${THEME==='jour'?'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>':'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>'}</svg><span class="wl">${THEME==='jour'?'Nuit':'Jour'}</span></button>
   ${navigator.wakeLock&&(live||wl)?`<button class="wake" data-act="wake" aria-pressed="${!!wl}" aria-label="${wl?'Écran maintenu allumé':'Garder l’écran allumé'}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8.2v3.6M9.6 9.6l1.3 1.3M14.4 9.6l-1.3 1.3"/></svg><span class="wl">${wl?'Écran maintenu allumé':'Garder l’écran allumé'}</span></button>`:''}`;
 }
 function renderRail(){
@@ -1735,6 +1739,7 @@ document.addEventListener('click',e=>{
     case 'stage':if(phaseOf(S.view)!==v)goView(S.lastV[v]||PHASES.find(p=>p[0]===v)[3][0][0]);break;
     case 'half':u.half=+v;saveUI();renderHeader();if(S.view==='notes'||S.view==='stats'||S.view==='gkin')renderView();break;
     case 'wake':toggleWake();break;
+    case 'theme':THEME=THEME==='jour'?'nuit':'jour';LS.set('b2t.theme',THEME);applyTheme();renderTop();break;
     case 'newMatch':startNew();break;
     case 'side':m.side=v;touch();renderView();renderHeader();break;
     case 'pick':u.pick=u.pick===id?null:id;renderView();break;
